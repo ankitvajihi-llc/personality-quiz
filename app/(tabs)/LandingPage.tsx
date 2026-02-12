@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Dimensions,
   Image,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -14,7 +15,7 @@ const { width } = Dimensions.get("window");
 const isMobile = width < 768;
 
 interface LandingPageProps {
-  onStart: () => void;
+  onStart: (name: string) => void;
 }
 
 const ARCHETYPES = [
@@ -26,12 +27,21 @@ const ARCHETYPES = [
 ];
 
 const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
+  const [name, setName] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
+
+  const handleStart = () => {
+    if (!name.trim()) return;
+    onStart(name.trim());
+  };
+
   return (
     <ScrollView
       style={styles.scrollContainer}
       contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
     >
-      {/* Floating arrows - decorative */}
+      {/* Decorative arrows */}
       {[...Array(5)].map((_, i) => (
         <Text
           key={i}
@@ -47,13 +57,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         </Text>
       ))}
 
-      {/* Geometric accents */}
       <View style={styles.geometricCircle} />
       <View style={styles.geometricSquare} />
 
-      {/* Main content */}
       <View style={styles.content}>
-        {/* Cupid mascot */}
         <View style={styles.mascotContainer}>
           <Image
             source={require("../../assets/images/Bohri Cupid w title.png")}
@@ -62,17 +69,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           />
         </View>
 
-        {/* Subtitle */}
         <Text style={styles.subtitle}>PERSONALITY DISCOVERY</Text>
 
-        {/* Description */}
         <Text style={styles.description}>
           Deen, Duniya? Reveal your true Bohra personality. Discover how you
           relate to faith, community, tradition, and modern life through 21
           thoughtful questions.
         </Text>
 
-        {/* Archetype pills */}
         <View style={styles.archetypeContainer}>
           {ARCHETYPES.map((archetype, index) => (
             <View
@@ -92,16 +96,41 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           ))}
         </View>
 
+        {/* ✨ Elegant Name Input */}
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              borderColor: isFocused ? "#D4A843" : "rgba(212, 168, 67, 0.4)",
+              shadowOpacity: isFocused ? 0.18 : 0.08,
+            },
+          ]}
+        >
+          <Text style={styles.inputIcon}>💌</Text>
+          <TextInput
+            placeholder="Enter your name"
+            placeholderTextColor="#B8A999"
+            value={name}
+            onChangeText={setName}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            style={[
+              styles.textInput,
+              { outlineWidth: 0 }, // ✅ remove blue border on web
+            ]}
+          />
+        </View>
+
         {/* CTA Button */}
         <TouchableOpacity
-          style={styles.ctaButton}
-          onPress={onStart}
+          style={[styles.ctaButton, { opacity: name.trim() ? 1 : 0.5 }]}
+          onPress={handleStart}
           activeOpacity={0.85}
+          disabled={!name.trim()}
         >
           <Text style={styles.ctaButtonText}>Start</Text>
         </TouchableOpacity>
 
-        {/* Footer info */}
         <Text style={styles.footerText}>
           20 questions · 5 minutes · No right or wrong answers
         </Text>
@@ -197,6 +226,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: Fonts.weights.semibold,
   },
+
+  /* ✨ New Elegant Input */
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF9F2",
+    borderRadius: 30,
+    borderWidth: 1.5,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    width: "100%",
+    marginBottom: 28,
+    shadowColor: "#D4A843",
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 15,
+    elevation: 2,
+  },
+  inputIcon: {
+    fontSize: 18,
+    marginRight: 12,
+    opacity: 0.7,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#4E3B2C",
+    fontFamily: Fonts.sans,
+    outlineStyle: "none",
+  } as any,
+
   ctaButton: {
     paddingVertical: 16,
     paddingHorizontal: 52,
