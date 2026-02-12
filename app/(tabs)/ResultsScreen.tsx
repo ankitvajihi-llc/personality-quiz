@@ -478,7 +478,7 @@ const AccuracySlider = () => {
             {...panResponder.panHandlers}
           >
             <View style={sliderStyles.thumbInner}>
-              <Text style={sliderStyles.thumbIcon}>🏹</Text>
+              {/* Removed the text to avoid accidental selection */}
             </View>
           </Animated.View>
         </View>
@@ -747,9 +747,9 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
 const markdownStyles = StyleSheet.create({
   body: {
     fontFamily: Fonts.sans,
-    fontSize: 14.5,
-    lineHeight: 25,
-    color: "#6A6A6A",
+    fontSize: 15.5,
+    lineHeight: 26,
+    color: "#565656",
   },
   heading1: {
     fontFamily: Fonts.serif,
@@ -1010,7 +1010,7 @@ const modalStyles = StyleSheet.create({
   },
   noDescription: {
     fontFamily: Fonts.sans,
-    fontSize: 14,
+    fontSize: 15,
     color: C.darkSoft,
     textAlign: "center",
     paddingHorizontal: 24,
@@ -1177,8 +1177,8 @@ const styles = StyleSheet.create({
   },
   gridMatch: {
     fontFamily: Fonts.sans,
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "800",
   },
 
   actionsContainer: {
