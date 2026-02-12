@@ -13,18 +13,6 @@ import { Fonts } from "../fonts";
 const { width } = Dimensions.get("window");
 const isMobile = width < 768;
 
-// Color palette
-const C = {
-  bg: "#FEF6EC",
-  bgCard: "#FFFFFF",
-  darkSoft: "#8B7355",
-  orange: "#D4654A",
-  gold: "#D4A843",
-  goldLight: "#E8CC7A",
-  white: "#FFFFFF",
-  text: "#2A1F17",
-};
-
 interface LandingPageProps {
   onStart: () => void;
 }
@@ -104,7 +92,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           ))}
         </View>
 
-        {/* CTA Button - Simple solid color version */}
+        {/* CTA Button */}
         <TouchableOpacity
           style={styles.ctaButton}
           onPress={onStart}
@@ -174,14 +162,6 @@ const styles = StyleSheet.create({
     width: isMobile ? 140 : 180,
     height: isMobile ? 140 : 180,
   },
-  title: {
-    fontFamily: Fonts.serif,
-    fontSize: isMobile ? 32 : 36,
-    fontWeight: Fonts.weights.extrabold,
-    color: "#D4A843",
-    marginBottom: 4,
-    textAlign: "center",
-  },
   subtitle: {
     fontFamily: "Poppins_600SemiBold",
     fontSize: 13,
@@ -221,7 +201,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 52,
     borderRadius: 40,
-    backgroundColor: "#D4654A", // Solid orange color
+    backgroundColor: "#D4654A",
     shadowColor: "#D4654A",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

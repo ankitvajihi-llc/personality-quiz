@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,34 +15,38 @@ import { Question, QuestionWeights } from '../utils/setupQuestions';
 import QuestionItem from './components/QuestionItem';
 import { Fonts } from '../fonts';
 import { ArchetypeData } from '../utils/setupArchetypes';
-import {
-  ARCHETYPE_PROFILES,
-  ArchetypeProfile,
-} from '../utils/archetypeProfiles';
 
 interface Answer {
   questionId: number;
   question: string;
   answer: number;
   weights: QuestionWeights;
+  dir: number;
 }
 
 export interface AxisScores {
-  CC: number;
-  MP: number;
-  PS: number;
-  M: number;
+  HP: number;
+  WP: number;
+  HF: number;
+  CI: number;
 }
 
 interface ArchetypeMatch {
   id: string;
-  archetype_id: any; // Firestore DocumentReference
+  archetype_id: any;
   percentage: number;
+  distance: number;
 }
 
-export interface ArchetypeRankingUI extends ArchetypeProfile {
+export interface ArchetypeRankingUI {
   key: string;
+  label: string;
   match: number;
+  color: string;
+  emoji: string;
+  arrow: string;
+  description?: string;
+  title?: string;
 }
 
 interface PersonalityQuizProps {
@@ -64,32 +67,31 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
   const [focusedQuestionIndex, setFocusedQuestionIndex] = useState(0);
   const [archetypes, setArchetypes] = useState<ArchetypeData[]>([]);
 
-
   useEffect(() => {
     loadQuestions();
     loadArchetypes();
-
   }, []);
 
-const loadArchetypes = async () => {
-  try {
-    const archetypesRef = collection(db, 'personality_archetypes');
-    const q = query(archetypesRef, orderBy('order', 'asc'));
-    const querySnapshot = await getDocs(q);
-    
-    const loadedArchetypes: ArchetypeData[] = [];
-    querySnapshot.forEach((docSnap) => {
-      loadedArchetypes.push({
-        ...docSnap.data(),
-        id: docSnap.id  // Store the Firestore document ID
-      } as ArchetypeData);
-    });
-    
-    setArchetypes(loadedArchetypes);
-  } catch (error) {
-    console.error('Error loading archetypes:', error);
-  }
-};
+  const loadArchetypes = async () => {
+    try {
+      const archetypesRef = collection(db, 'personality_archetypes');
+      const q = query(archetypesRef, orderBy('order', 'asc'));
+      const querySnapshot = await getDocs(q);
+      
+      const loadedArchetypes: ArchetypeData[] = [];
+      querySnapshot.forEach((docSnap) => {
+        loadedArchetypes.push({
+          ...docSnap.data(),
+          id: docSnap.id
+        } as ArchetypeData);
+      });
+      
+      setArchetypes(loadedArchetypes);
+    } catch (error) {
+      console.error('Error loading archetypes:', error);
+    }
+  };
+
   const loadQuestions = async () => {
     try {
       const questionsRef = collection(db, 'personality_questions');
@@ -108,103 +110,115 @@ const loadArchetypes = async () => {
     }
   };
 
-  // 5-point scale options
   const scaleOptions = [
-    { value: 1, label: 'Strongly Agree' },
+    { value: 0, label: 'Strongly Disagree' },
+    { value: 1, label: '' },
     { value: 2, label: '' },
     { value: 3, label: '' },
-    { value: 4, label: '' },
-    { value: 5, label: 'Strongly Disagree' },
+    { value: 4, label: 'Strongly Agree' },
   ];
 
-const calculateWeightedScores = (allAnswers: Record<number, Answer>): AxisScores => {
-  // Step 1: Calculate raw weighted contributions
-  const rawScores: AxisScores = { CC: 0, MP: 0, PS: 0, M: 0 };
-  
-  Object.values(allAnswers).forEach((answer) => {
-    rawScores.CC += answer.answer * answer.weights.CC;
-    rawScores.MP += answer.answer * answer.weights.MP;
-    rawScores.PS += answer.answer * answer.weights.PS;
-    rawScores.M += answer.answer * answer.weights.M;
-  });
-
-  // Step 2: Calculate max possible scores for each axis
-  const maxPossible: AxisScores = { CC: 0, MP: 0, PS: 0, M: 0 };
-  
-  questions.forEach((question) => {
-    maxPossible.CC += 5 * question.weights.CC;
-    maxPossible.MP += 5 * question.weights.MP;
-    maxPossible.PS += 5 * question.weights.PS;
-    maxPossible.M += 5 * question.weights.M;
-  });
-
-  // Step 3: Normalize to 0-5 scale
-  // Formula: (Raw Sum ÷ Max Possible) × 5
-  const normalizedScores: AxisScores = {
-    CC: maxPossible.CC > 0 ? (rawScores.CC / maxPossible.CC) * 5 : 0,
-    MP: maxPossible.MP > 0 ? (rawScores.MP / maxPossible.MP) * 5 : 0,
-    PS: maxPossible.PS > 0 ? (rawScores.PS / maxPossible.PS) * 5 : 0,
-    M: maxPossible.M > 0 ? (rawScores.M / maxPossible.M) * 5 : 0,
-  };
-
-  // Round to 2 decimal places
-  return {
-    CC: Math.round(normalizedScores.CC * 100) / 100,
-    MP: Math.round(normalizedScores.MP * 100) / 100,
-    PS: Math.round(normalizedScores.PS * 100) / 100,
-    M: Math.round(normalizedScores.M * 100) / 100,
-  };
-};
-
-const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[] => {
-  if (archetypes.length === 0) {
-    console.warn('No archetypes loaded');
-    return [];
-  }
-
-  // Step 1: Calculate Euclidean distance for each archetype
-  const archetypeDistances = archetypes.map((archetype) => {
-    const target = archetype.axes_target;
+  // --- FIXED CALCULATION LOGIC ---
+  const calculateWeightedScores = (allAnswers: Record<number, Answer>): AxisScores => {
+    console.log('=== STARTING CALCULATION ===');
     
-    // Distance = √[Σ(user_score - target)²]
-    const distance = Math.sqrt(
-      Math.pow(userScores.CC - target.CC, 2) +
-      Math.pow(userScores.MP - target.MP, 2) +
-      Math.pow(userScores.PS - target.PS, 2) +
-      Math.pow(userScores.M - target.M, 2)
-    );
+    // Initialize accumulators
+    const rawScores = { HP: 0, WP: 0, HF: 0, CI: 0 };
+    const maxPossible = { HP: 0, WP: 0, HF: 0, CI: 0 };
+    
+    // Iterate specifically through the PROVIDED ANSWERS to ensure alignment
+    Object.values(allAnswers).forEach((item) => {
+      // 1. Force types to Number to prevent string concatenation/errors
+      const rawAnswer = Number(item.answer);
+      const direction = Number(item.dir); 
+      
+      // Safety check for weights, defaulting to 0 if missing
+      const wHP = Number(item.weights?.HP || 0);
+      const wWP = Number(item.weights?.WP || 0);
+      const wHF = Number(item.weights?.HF || 0);
+      const wCI = Number(item.weights?.CI || 0);
 
-    return {
-      archetype,
-      distance,
+      // 2. Adjust for Direction
+      // Excel Logic: If Dir is -1, flipped = 4 - Answer. 
+      // Default: If Dir is 1 (or missing/0), use Answer as is.
+      const adjustedAnswer = (direction === -1) ? (4 - rawAnswer) : rawAnswer;
+      
+      // 3. Accumulate Raw Scores (Adjusted Answer * Weight)
+      rawScores.HP += adjustedAnswer * wHP;
+      rawScores.WP += adjustedAnswer * wWP;
+      rawScores.HF += adjustedAnswer * wHF;
+      rawScores.CI += adjustedAnswer * wCI;
+
+      // 4. Accumulate Max Possible (Max Answer Value [4] * Weight)
+      // This ensures the normalization denominator perfectly matches the questions answered
+      maxPossible.HP += 4 * wHP;
+      maxPossible.WP += 4 * wWP;
+      maxPossible.HF += 4 * wHF;
+      maxPossible.CI += 4 * wCI;
+    });
+
+    console.log('Raw Sums:', rawScores);
+    console.log('Max Possible:', maxPossible);
+
+    // 5. Normalize to 0-4 scale
+    // Formula: (Raw Total / Max Possible) * 4
+    const normalize = (raw: number, max: number) => {
+      if (max === 0) return 0; // Prevent divide by zero
+      return (raw / max) * 4;
     };
-  });
 
-  // Step 2: Max possible distance in 4D space (0-5 scale)
-  // = √(5² + 5² + 5² + 5²) = 10
-  const maxDistance = 10;
-
-  // Step 3: Convert distance to similarity percentage
-  // Similarity % = (1 - distance/maxDistance) × 100
-  const archetypeMatches: ArchetypeMatch[] = archetypeDistances.map(({ archetype, distance }) => {
-    const similarity = (1 - (distance / maxDistance)) * 100;
-    const percentage = Math.max(0, Math.min(100, Math.round(similarity * 10) / 10));
-
-    // Create Firestore document reference
-    const archetypeRef = doc(db, 'personality_archetypes', archetype.id);
-
-    return {
-      id: archetype.id,
-      archetype_id: archetypeRef,
-      percentage,
+    const finalScores: AxisScores = {
+      HP: Number(normalize(rawScores.HP, maxPossible.HP).toFixed(2)),
+      WP: Number(normalize(rawScores.WP, maxPossible.WP).toFixed(2)),
+      HF: Number(normalize(rawScores.HF, maxPossible.HF).toFixed(2)),
+      CI: Number(normalize(rawScores.CI, maxPossible.CI).toFixed(2)),
     };
-  });
 
-  // Step 4: Sort by percentage (highest first)
-  archetypeMatches.sort((a, b) => b.percentage - a.percentage);
+    console.log('Final Normalized Scores:', finalScores);
+    return finalScores;
+  };
 
-  return archetypeMatches;
-};
+  const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[] => {
+    if (archetypes.length === 0) return [];
+
+    // Max possible Euclidean distance in 4 dimensions on a 0-4 scale
+    // Sqrt(4^2 + 4^2 + 4^2 + 4^2) = Sqrt(64) = 8
+    const MAX_DISTANCE = 8.0;
+
+    const matches = archetypes.map((archetype) => {
+      // Ensure target values are numbers
+      const tgtHP = Number(archetype.axes_target?.HP || 0);
+      const tgtWP = Number(archetype.axes_target?.WP || 0);
+      const tgtHF = Number(archetype.axes_target?.HF || 0);
+      const tgtCI = Number(archetype.axes_target?.CI || 0);
+
+      // Euclidean Distance Formula
+      const distance = Math.sqrt(
+        Math.pow(userScores.HP - tgtHP, 2) +
+        Math.pow(userScores.WP - tgtWP, 2) +
+        Math.pow(userScores.HF - tgtHF, 2) +
+        Math.pow(userScores.CI - tgtCI, 2)
+      );
+
+      // Convert Distance to Similarity Percentage
+      // 0 distance = 100%, 8 distance = 0%
+      const similarity = (1 - (distance / MAX_DISTANCE)) * 100;
+      
+      // Clamp between 0 and 100
+      const percentage = Math.max(0, Math.min(100, Number(similarity.toFixed(1))));
+
+      return {
+        id: archetype.id,
+        archetype_id: doc(db, 'personality_archetypes', archetype.id),
+        percentage,
+        distance
+      };
+    });
+
+    // Sort by highest percentage first
+    return matches.sort((a, b) => b.percentage - a.percentage);
+  };
+  // --- END FIXED LOGIC ---
 
   const handleAnswerSelect = (questionId: number, value: number) => {
     const question = questions.find(q => q.id === questionId);
@@ -216,12 +230,12 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
         questionId: question.id,
         question: question.text,
         answer: value,
-        weights: question.weights
+        weights: question.weights,
+        dir: question.dir
       }
     };
     setAnswers(newAnswers);
 
-    // Auto-advance focus to next unanswered question in batch
     const currentBatch = questions.slice(currentQuestion, currentQuestion + 3);
     const nextUnanswered = currentBatch.findIndex((q, idx) => 
       !newAnswers[q.id] && q.id !== questionId
@@ -236,7 +250,6 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
   const isBatchComplete = currentBatch.length > 0 && currentBatch.every(q => !!answers[q.id]);
 
   useEffect(() => {
-    // Reset focus when page changes
     const firstUnanswered = currentBatch.findIndex(q => !answers[q.id]);
     setFocusedQuestionIndex(firstUnanswered !== -1 ? firstUnanswered : 0);
   }, [currentQuestion, answers, currentBatch]);
@@ -258,24 +271,32 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
       const weightedScores = calculateWeightedScores(finalAnswers);
       const archetypeMatches = calculateArchetypePercentages(weightedScores);
 
-      // Build UI-friendly rankings from matches using static profiles
-      const uiRankings: ArchetypeRankingUI[] = archetypeMatches
-        .map((match) => {
-          const profile = ARCHETYPE_PROFILES[match.id];
-          if (!profile) return null;
-          return {
-            key: match.id,
-            match: match.percentage,
-            ...profile,
-          };
-        })
-        .filter(Boolean) as ArchetypeRankingUI[];
+      const uiRankings: ArchetypeRankingUI[] = archetypeMatches.map((match) => {
+        const archetype = archetypes.find(a => a.id === match.id);
+        if (!archetype) return null;
+        
+        return {
+          key: match.id,
+          match: match.percentage,
+          label: archetype.title,
+          title: archetype.title,
+          description: archetype.description,
+          color: '#D4654A',
+          emoji: '🏹',
+          arrow: '🏹',
+        };
+      }).filter(Boolean) as ArchetypeRankingUI[];
 
       const quizData = {
         userId: userId || 'anonymous',
         answers: finalAnswers,
         scores: weightedScores,
-        archetypes: archetypeMatches,
+        archetypes: archetypeMatches.map(m => ({
+          id: m.id,
+          archetype_id: m.archetype_id,
+          percentage: m.percentage,
+          distance: m.distance,
+        })),
         totalQuestions: questions.length,
         completedAt: new Date().toISOString(),
         timestamp: new Date()
@@ -283,10 +304,6 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
 
       const docRef = await addDoc(collection(db, 'personality_quiz_results'), quizData);
 
-      console.log('Quiz saved with ID:', docRef.id);
-      console.log('Weighted Scores:', weightedScores);
-
-      // Let parent screen transition to the rich results view
       if (onComplete) {
         onComplete({ scores: weightedScores, rankings: uiRankings });
       }
@@ -356,7 +373,6 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
@@ -375,14 +391,12 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
         </View>
       </View>
 
-      {/* Previous Button */}
       {currentQuestion > 0 && (
         <TouchableOpacity onPress={handlePrevious} style={styles.backButton}>
           <Text style={styles.backButtonText}>← PREVIOUS</Text>
         </TouchableOpacity>
       )}
 
-      {/* Question Card */}
       <View style={styles.cardContainer}>
         {currentBatch.map((q, index) => {
           const isFocused = focusedQuestionIndex === index;
@@ -393,7 +407,7 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
                 question={q}
                 isActive={isFocused}
                 currentQuestionIndex={currentQuestion + index}
-                selectedAnswer={answers[q.id]?.answer || null}
+                selectedAnswer={answers[q.id]?.answer ?? null}
                 onAnswerSelect={(val) => handleAnswerSelect(q.id, val)}
                 scaleOptions={scaleOptions}
               />
@@ -403,7 +417,6 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
         })}
       </View>
 
-      {/* Next Button */}
       <View style={styles.footerContainer}>
         <TouchableOpacity
           style={[
@@ -418,7 +431,6 @@ const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[]
           </Text>
         </TouchableOpacity>
 
-        {/* Page Dots */}
         <View style={styles.pageDotsContainer}>
           {Array.from({ length: totalPages }).map((_, i) => (
             <View
