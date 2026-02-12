@@ -16,13 +16,14 @@ const isMobile = width < 768;
 
 // Color palette
 const C = {
-  bg: '#0D0906',
-  bgCard: '#1A130D',
-  darkSoft: '#4A3828',
+  bg: '#FEF6EC',
+  bgCard: '#FFFFFF',
+  darkSoft: '#8B7355',
   orange: '#D4654A',
   gold: '#D4A843',
   goldLight: '#E8CC7A',
   white: '#FFFFFF',
+  text: '#2A1F17',
 };
 
 interface LandingPageProps {
@@ -123,11 +124,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
 const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
-    backgroundColor: '#0D0906',
+    backgroundColor: '#FEF6EC',
   },
   container: {
     flexGrow: 1,
-    backgroundColor: '#0D0906',
+    backgroundColor: '#FEF6EC',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
   floatingArrow: {
     position: 'absolute',
     fontSize: isMobile ? 14 : 16,
-    opacity: 0.06,
+    opacity: 0.12,
   },
   geometricCircle: {
     position: 'absolute',
@@ -146,7 +147,7 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderWidth: 1,
-    borderColor: 'rgba(212, 168, 67, 0.1)',
+    borderColor: 'rgba(212, 168, 67, 0.2)',
     borderRadius: 50,
   },
   geometricSquare: {
@@ -156,7 +157,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderWidth: 1,
-    borderColor: 'rgba(212, 101, 74, 0.1)',
+    borderColor: 'rgba(212, 101, 74, 0.2)',
     transform: [{ rotate: '45deg' }],
   },
   content: {
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.serif,
     fontSize: isMobile ? 32 : 36,
     fontWeight: Fonts.weights.extrabold,
-    color: '#FFFFFF',
+    color: '#2A1F17',
     marginBottom: 4,
     textAlign: 'center',
   },
@@ -184,7 +185,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 13,
     fontWeight: Fonts.weights.semibold,
-    color: '#E8CC7A',
+    color: '#D4A843',
     letterSpacing: 3.5,
     marginBottom: 24,
     textAlign: 'center',
@@ -192,7 +193,7 @@ const styles = StyleSheet.create({
   description: {
     fontFamily: Fonts.sans,
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.45)',
+    color: '#8B7355',
     lineHeight: 25.5,
     marginBottom: 32,
     textAlign: 'center',
@@ -222,9 +223,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#D4654A', // Solid orange color
     shadowColor: '#D4654A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
-    shadowRadius: 28,
-    elevation: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 6,
   },
   ctaButtonText: {
     fontFamily: Fonts.sans,
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
   footerText: {
     fontFamily: Fonts.sans,
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.2)',
+    color: '#BBBBBB',
     marginTop: 18,
     textAlign: 'center',
   },
