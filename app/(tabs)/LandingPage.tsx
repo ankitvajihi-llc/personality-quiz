@@ -188,8 +188,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   mascotImage: {
-    width: isMobile ? 140 : 180,
-    height: isMobile ? 140 : 180,
+    width: isMobile ? 200 : 240,
+    height: isMobile ? 200 : 240,
   },
   subtitle: {
     fontFamily: "Poppins_600SemiBold",
