@@ -18,11 +18,11 @@ interface LandingPageProps {
 }
 
 const ARCHETYPES = [
-  { emoji: "🕌", label: "Devout Faithful", color: "#D4A843" },
-  { emoji: "🔍", label: "Curious Questioner", color: "#5BA89D" },
-  { emoji: "⚖️", label: "Balanced Harmonizer", color: "#7A9E7E" },
-  { emoji: "🏛️", label: "Devoted Keeper", color: "#E8896F" },
-  { emoji: "🦅", label: "Free Independent", color: "#C97B6B" },
+  { emoji: "🕌", label: "Devoted", color: "#D4A843" },
+  { emoji: "🔍", label: "Thinker", color: "#5BA89D" },
+  { emoji: "⚖️", label: "Harmonizer", color: "#7A9E7E" },
+  { emoji: "🏛️", label: "Keeper", color: "#E8896F" },
+  { emoji: "🦅", label: "Independent", color: "#C97B6B" },
 ];
 
 const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF6EC",
     justifyContent: "center",
     alignItems: "center",
-    padding: 16,
+    padding: 24,
     position: "relative",
     minHeight: Dimensions.get("window").height,
   },
@@ -189,8 +189,8 @@ const styles = StyleSheet.create({
   archetypePill: {
     borderRadius: 20,
     borderWidth: 1,
-    paddingVertical: 5,
-    paddingHorizontal: 13,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
   archetypeText: {
     fontFamily: Fonts.sans,
