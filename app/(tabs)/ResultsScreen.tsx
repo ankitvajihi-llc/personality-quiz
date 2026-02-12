@@ -1,15 +1,18 @@
 import { collection, getDocs } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Animated,
   Dimensions,
   Image,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import Markdown from "react-native-markdown-display"; // <--- 1. IMPORT ADDED
 import { db } from "../firebase.config";
 import { Fonts } from "../fonts";
 
@@ -30,11 +33,12 @@ const C = {
   warmBg: "#FEF6EC",
 };
 
+// NEW: Updated to HP, WP, HF, CI on 0-4 scale
 interface AxisScore {
-  CC: number;
-  MP: number;
-  PS: number;
-  M: number;
+  HP: number;
+  WP: number;
+  HF: number;
+  CI: number;
 }
 
 interface ArchetypeRanking {
@@ -121,7 +125,9 @@ const SimilarCard = ({ arch, rank, delay }: any) => {
 
         <View style={styles.similarInfo}>
           <Text style={styles.similarLabel}>{arch.label}</Text>
-          <Text style={styles.similarPercentage}>{arch.match}%</Text>
+          <Text style={[styles.similarPercentage, { color: arch.color }]}>
+            {arch.match}%
+          </Text>
         </View>
       </View>
 
@@ -150,16 +156,20 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
 }) => {
   const [loaded, setLoaded] = useState(false);
   const [showContent, setShowContent] = useState(false);
-  const [firestoreRankings, setFirestoreRankings] = useState<ArchetypeRanking[]>([]);
+  const [firestoreRankings, setFirestoreRankings] = useState<
+    ArchetypeRanking[]
+  >([]);
   const [loadingArchetypes, setLoadingArchetypes] = useState(true);
 
   // Fetch archetypes from Firestore
   useEffect(() => {
     const fetchArchetypes = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "personality_archetypes"));
+        const querySnapshot = await getDocs(
+          collection(db, "personality_archetypes"),
+        );
         const archetypesMap: { [key: string]: any } = {};
-        
+
         querySnapshot.forEach((doc) => {
           archetypesMap[doc.id] = doc.data();
         });
@@ -191,16 +201,45 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
     setTimeout(() => setShowContent(true), 700);
   }, []);
 
-  const displayRankings = firestoreRankings.length > 0 ? firestoreRankings : rankings;
+  const displayRankings =
+    firestoreRankings.length > 0 ? firestoreRankings : rankings;
   const primary = displayRankings[0];
   const similar = displayRankings.slice(1, 4);
 
+  // NEW: Updated axis labels for HP, WP, HF, CI
   const axes = [
-    { key: "CC", label: "Community Centrality", color: C.orange },
-    { key: "MP", label: "Moula & Personal Devotion", color: C.gold },
-    { key: "PS", label: "Practice & Engagement", color: C.teal },
-    { key: "M", label: "Modernity & Independence", color: C.rose },
+    { key: "HP", label: "Habitual Practice", color: C.orange },
+    { key: "WP", label: "Why Practice", color: C.gold },
+    { key: "HF", label: "How Faith", color: C.teal },
+    { key: "CI", label: "Community Importance", color: C.rose },
   ];
+
+  const handleShare = async () => {
+    try {
+      const shareMessage = `🏹 Bohri Cupid Personality Results
+
+My Top Match: ${primary.label} (${primary.match}%)
+
+Trait Scores:
+🙏 Habitual Practice: ${scores.HP.toFixed(1)}/4
+💭 Why Practice: ${scores.WP.toFixed(1)}/4
+✨ How Faith: ${scores.HF.toFixed(1)}/4
+👥 Community Importance: ${scores.CI.toFixed(1)}/4
+
+Discover your Bohra personality with Bohri Cupid!`;
+
+      const result = await Share.share({
+        message: shareMessage,
+        title: "My Bohri Cupid Results",
+      });
+
+      if (result.action === Share.sharedAction) {
+        console.log("Shared successfully");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Unable to share results");
+    }
+  };
 
   if (loadingArchetypes) {
     return (
@@ -233,7 +272,6 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
               {primary.arrow} {primary.match}% Match
             </Text>
           </View>
-
           <Text style={styles.primaryLabel}>{primary.label}</Text>
         </View>
       </View>
@@ -247,17 +285,20 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
               key={ax.key}
               label={ax.label}
               value={scores[ax.key as keyof AxisScore]}
-              maxVal={5}
+              maxVal={4}
               color={ax.color}
               delay={500 + i * 180}
             />
           ))}
         </View>
 
-        {/* Description from Database */}
+        {/* Description from Database (MARKDOWN ENABLED) */}
         {primary.description && (
           <View style={[styles.reportCard, { opacity: showContent ? 1 : 0 }]}>
-            <Text style={styles.reportText}>{primary.description}</Text>
+            {/* ADD THE REPLACE FUNCTION BELOW */}
+            <Markdown style={markdownStyles}>
+              {primary.description.replace(/\\n/g, "\n")}
+            </Markdown>
           </View>
         )}
 
@@ -284,7 +325,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-          <TouchableOpacity style={styles.shareButton}>
+          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
             <Text style={styles.shareButtonText}>Share Results 🏹</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.retakeButton} onPress={onRetake}>
@@ -295,6 +336,54 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
     </ScrollView>
   );
 };
+
+// 3. MARKDOWN STYLES DEFINED
+const markdownStyles = StyleSheet.create({
+  // General text style (matches your previous styles.reportText)
+  body: {
+    fontFamily: Fonts.sans,
+    fontSize: 14.5,
+    lineHeight: 25,
+    color: "#6A6A6A",
+  },
+  // Headings
+  heading1: {
+    fontFamily: Fonts.serif,
+    fontSize: 22,
+    fontWeight: Fonts.weights.bold,
+    color: C.dark,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  heading2: {
+    fontFamily: Fonts.serif,
+    fontSize: 18,
+    fontWeight: Fonts.weights.bold,
+    color: C.darkSoft,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  // Bold text (Strong) - makes it pop with your orange color
+  strong: {
+    fontFamily: Fonts.sans,
+    fontWeight: Fonts.weights.bold,
+    color: C.orange,
+  },
+  // List items
+  bullet_list: {
+    marginBottom: 10,
+  },
+  list_item: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  // Removes default top margin from paragraphs to fit card better
+  paragraph: {
+    marginTop: 0,
+    marginBottom: 10,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -423,12 +512,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${C.goldPale}40`,
   },
-  reportText: {
-    fontFamily: Fonts.sans,
-    fontSize: 14.5,
-    lineHeight: 25,
-    color: "#6A6A6A",
-  },
+  // reportText removed in favor of markdownStyles.body
   similarSection: {
     marginTop: 40,
   },
