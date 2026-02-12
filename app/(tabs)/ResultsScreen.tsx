@@ -21,8 +21,8 @@ const isMobile = width < 768;
 
 // Color palette
 const C = {
-  bg: "#0D0906",
-  darkSoft: "#4A3828",
+  bg: "#FEF6EC",
+  darkSoft: "#8B7355",
   dark: "#2A1F17",
   orange: "#D4654A",
   gold: "#D4A843",
@@ -410,6 +410,8 @@ const styles = StyleSheet.create({
     paddingBottom: 72,
     paddingHorizontal: 16,
     alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: `${C.goldPale}60`,
   },
   mascotContainer: {
     marginBottom: 8,
@@ -440,7 +442,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.serif,
     fontSize: 34,
     fontWeight: Fonts.weights.extrabold,
-    color: "#FFFFFF",
+    color: C.dark,
     marginBottom: 10,
     textAlign: "center",
   },
