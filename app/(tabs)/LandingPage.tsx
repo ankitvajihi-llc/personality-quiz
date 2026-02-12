@@ -72,7 +72,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         <Text style={styles.subtitle}>PERSONALITY DISCOVERY</Text>
 
         <Text style={styles.description}>
-          Deen, Duniya? Or is it complicated? Reveal your true Bohra
+          Deen? Duniya? Or is it complicated? Reveal your true Bohra
           personality. Discover how you relate to faith, community, tradition,
           and modern life through 21 thoughtful questions.
         </Text>
