@@ -134,6 +134,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         <Text style={styles.footerText}>
           20 questions · 5 minutes · No right or wrong answers
         </Text>
+        <Text style={styles.poweredBy}>Powered by Aunty Intelligence</Text>
       </View>
     </ScrollView>
   );
@@ -281,6 +282,14 @@ const styles = StyleSheet.create({
     color: "#BBBBBB",
     marginTop: 18,
     textAlign: "center",
+  },
+  poweredBy: {
+    fontFamily: Fonts.sans,
+    fontSize: 11,
+    color: "#A0A0A0",
+    marginTop: 6,
+    textAlign: "center",
+    opacity: 0.9,
   },
 });
 
