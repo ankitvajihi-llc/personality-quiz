@@ -155,11 +155,11 @@ const QuestionItem: React.FC<QuestionItemProps> = ({
         {/* Labels */}
         {shouldShowLabels && (
           <View style={styles.scaleLabels}>
-            <Text style={[styles.scaleLabel, { color: "#D9534F" }]}>
-              STRONGLY DISAGREE
+            <Text style={[styles.scaleLabel, { color: "#D9534F", textAlign: "left" }]}>
+              {"STRONGLY\nDISAGREE"}
             </Text>
-            <Text style={[styles.scaleLabel, { color: "#4CAF50" }]}>
-              STRONGLY AGREE
+            <Text style={[styles.scaleLabel, { color: "#4CAF50", textAlign: "right" }]}>
+              {"STRONGLY\nAGREE"}
             </Text>
           </View>
         )}
@@ -249,6 +249,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     fontFamily: Fonts.sans,
     opacity: 0.6,
+    lineHeight: 14,
   },
 });
 
