@@ -1,3 +1,4 @@
+import { BlurView } from "expo-blur";
 import { collection, getDocs } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -5,7 +6,9 @@ import {
   Animated,
   Dimensions,
   Image,
+  Modal,
   PanResponder,
+  Pressable,
   ScrollView,
   Share,
   StyleSheet,
@@ -64,6 +67,7 @@ interface ArchetypeRanking {
   arrow: string;
   description?: string;
   title?: string;
+  imageUrl?: string;
 }
 
 interface ResultsScreenProps {
@@ -113,7 +117,7 @@ const TraitBar = ({ label, value, maxVal, color, delay }: any) => {
   );
 };
 
-const SimilarCard = ({ arch, rank, delay }: any) => {
+const GridCard = ({ arch, rank, delay, onPress }: any) => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -121,47 +125,182 @@ const SimilarCard = ({ arch, rank, delay }: any) => {
   }, [delay]);
 
   return (
-    <View style={[styles.similarCard, { opacity: visible ? 1 : 0 }]}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => onPress(arch)}
+      style={[styles.gridCard, { opacity: visible ? 1 : 0 }]}
+    >
       <View style={[styles.rankBadge, { backgroundColor: arch.color }]}>
         <Text style={styles.rankBadgeText}>#{rank}</Text>
       </View>
 
-      <View style={styles.similarCardContent}>
-        <View
-          style={[
-            styles.similarIconCircle,
-            {
-              backgroundColor: `${arch.color}15`,
-              borderColor: `${arch.color}40`,
-            },
-          ]}
-        >
-          <Text style={styles.similarEmoji}>{arch.emoji}</Text>
-        </View>
-
-        <View style={styles.similarInfo}>
-          <Text style={styles.similarLabel}>{arch.label}</Text>
-          <Text style={[styles.similarPercentage, { color: arch.color }]}>
-            {arch.match}%
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.similarProgressContainer}>
-        <Text style={styles.similarProgressLabel}>Similarity</Text>
-        <View style={styles.similarProgressBar}>
+      <View style={styles.gridImageWrapper}>
+        {arch.imageUrl ? (
+          <Image
+            source={{ uri: arch.imageUrl }}
+            style={styles.gridImage}
+            resizeMode="cover"
+          />
+        ) : (
           <View
             style={[
-              styles.similarProgressFill,
+              styles.gridImagePlaceholder,
+              { backgroundColor: `${arch.color}15` },
+            ]}
+          >
+            <Text style={styles.gridEmoji}>{arch.emoji}</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.gridCardInfo}>
+        <Text style={styles.gridLabel} numberOfLines={1}>
+          {arch.label}
+        </Text>
+        <Text style={[styles.gridMatch, { color: arch.match > 70 ? "#4CAF50" : arch.match >= 50 ? "#FF9800" : "#E53935" }]}>
+          {arch.match}% match
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const ArchetypeModal = ({
+  arch,
+  visible,
+  onClose,
+}: {
+  arch: ArchetypeRanking | null;
+  visible: boolean;
+  onClose: () => void;
+}) => {
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          friction: 6,
+          tension: 80,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      scaleAnim.setValue(0.85);
+      opacityAnim.setValue(0);
+    }
+  }, [visible]);
+
+  const handleClose = () => {
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 0.85,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => onClose());
+  };
+
+  if (!arch) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={handleClose}
+    >
+      <BlurView intensity={40} tint="dark" style={modalStyles.backdrop}>
+        <Pressable style={modalStyles.backdropPress} onPress={handleClose}>
+          <Animated.View
+            style={[
+              modalStyles.container,
               {
-                width: visible ? `${arch.match}%` : "0%",
-                backgroundColor: arch.color,
+                opacity: opacityAnim,
+                transform: [{ scale: scaleAnim }],
               },
             ]}
-          />
-        </View>
-      </View>
-    </View>
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              {/* Close button */}
+              <TouchableOpacity
+                style={modalStyles.closeBtn}
+                onPress={handleClose}
+              >
+                <Text style={modalStyles.closeBtnText}>x</Text>
+              </TouchableOpacity>
+
+              <ScrollView
+                style={modalStyles.scrollView}
+                contentContainerStyle={modalStyles.scrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Image */}
+                <View style={modalStyles.imageWrapper}>
+                  {arch.imageUrl ? (
+                    <Image
+                      source={{ uri: arch.imageUrl }}
+                      style={modalStyles.image}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        modalStyles.imagePlaceholder,
+                        { backgroundColor: `${arch.color}15` },
+                      ]}
+                    >
+                      <Text style={{ fontSize: 72 }}>{arch.emoji}</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Match badge */}
+                <View
+                  style={[
+                    modalStyles.matchBadge,
+                    { backgroundColor: arch.color },
+                  ]}
+                >
+                  <Text style={modalStyles.matchBadgeText}>
+                    {arch.arrow} {arch.match}% Match
+                  </Text>
+                </View>
+
+                {/* Title */}
+                <Text style={modalStyles.title}>{arch.label}</Text>
+
+                {/* Description */}
+                {arch.description ? (
+                  <View style={modalStyles.descriptionContainer}>
+                    <Markdown style={markdownStyles}>
+                      {arch.description.replace(/\\n/g, "\n")}
+                    </Markdown>
+                  </View>
+                ) : (
+                  <Text style={modalStyles.noDescription}>
+                    No description available yet.
+                  </Text>
+                )}
+              </ScrollView>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </BlurView>
+    </Modal>
   );
 };
 
@@ -170,7 +309,7 @@ const AccuracySlider = () => {
   const [value, setValue] = useState(3);
   const [submitted, setSubmitted] = useState(false);
   const [trackWidth, setTrackWidth] = useState(0);
-  
+
   const pan = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -224,17 +363,20 @@ const AccuracySlider = () => {
 
       onPanResponderRelease: (_, gestureState) => {
         pan.flattenOffset();
-        
+
         // Get final position
         const finalPosition = getPositionFromValue(value) + gestureState.dx;
-        const clampedPosition = Math.max(0, Math.min(trackWidth, finalPosition));
-        
+        const clampedPosition = Math.max(
+          0,
+          Math.min(trackWidth, finalPosition),
+        );
+
         // Calculate new value
         const newValue = getValueFromPosition(clampedPosition);
-        
+
         // Snap to position
         const targetPosition = getPositionFromValue(newValue);
-        
+
         Animated.spring(pan, {
           toValue: targetPosition,
           useNativeDriver: false,
@@ -247,7 +389,7 @@ const AccuracySlider = () => {
           triggerPulse();
         }
       },
-    })
+    }),
   ).current;
 
   // Update pan position when value changes
@@ -290,7 +432,7 @@ const AccuracySlider = () => {
   const thumbLeft = pan.interpolate({
     inputRange: [0, trackWidth || 1],
     outputRange: [0, trackWidth || 1],
-    extrapolate: 'clamp',
+    extrapolate: "clamp",
   });
 
   return (
@@ -400,6 +542,10 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
     ArchetypeRanking[]
   >([]);
   const [loadingArchetypes, setLoadingArchetypes] = useState(true);
+  const [selectedArch, setSelectedArch] = useState<ArchetypeRanking | null>(
+    null,
+  );
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     const fetchArchetypes = async () => {
@@ -419,6 +565,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
             ...ranking,
             label: firestoreData.title || ranking.label,
             description: firestoreData.description || "",
+            imageUrl: firestoreData.imageUrl || "",
           };
         });
 
@@ -442,7 +589,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   const displayRankings =
     firestoreRankings.length > 0 ? firestoreRankings : rankings;
   const primary = displayRankings[0];
-  const similar = displayRankings.slice(1, 4);
+  const similar = displayRankings.slice(1, 5);
 
   const axes = [
     { key: "HP", label: "Habitual Practice", color: C.orange },
@@ -472,91 +619,103 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-    >
-      {/* Hero Section */}
-      <View style={styles.heroSection}>
-        <View style={[styles.mascotContainer, { opacity: loaded ? 1 : 0 }]}>
-          <Image
-            source={require("../../assets/images/bohricupid.png")}
-            style={styles.mascotImage}
-            resizeMode="contain"
-          />
-        </View>
-
-        <View style={[styles.primaryResult, { opacity: loaded ? 1 : 0 }]}>
-          <View style={[styles.matchBadge, { backgroundColor: primary.color }]}>
-            <Text style={styles.matchBadgeText}>
-              {primary.arrow} {primary.match}% Match
-            </Text>
-          </View>
-          <Text style={styles.primaryLabel}>{primary.label}</Text>
-        </View>
-      </View>
-
-      <View style={styles.contentSection}>
-        {/* Trait Spectrum */}
-        <View style={styles.traitCard}>
-          <Text style={styles.sectionTitle}>Your Trait Spectrum</Text>
-          {axes.map((ax, i) => (
-            <TraitBar
-              key={ax.key}
-              label={ax.label}
-              value={scores[ax.key as keyof AxisScore]}
-              maxVal={4}
-              color={ax.color}
-              delay={500 + i * 180}
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+      >
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          <View style={[styles.mascotContainer, { opacity: loaded ? 1 : 0 }]}>
+            <Image
+              source={require("../../assets/images/bohricupid.png")}
+              style={styles.mascotImage}
+              resizeMode="contain"
             />
-          ))}
-        </View>
-
-        {/* Description */}
-        {primary.description && (
-          <View style={[styles.reportCard, { opacity: showContent ? 1 : 0 }]}>
-            <Markdown style={markdownStyles}>
-              {primary.description.replace(/\\n/g, "\n")}
-            </Markdown>
           </View>
-        )}
 
-        {/* ACCURACY SLIDER IS HERE */}
-        <View style={{ opacity: showContent ? 1 : 0 }}>
-          <AccuracySlider />
+          <View style={[styles.primaryResult, { opacity: loaded ? 1 : 0 }]}>
+            <View
+              style={[styles.matchBadge, { backgroundColor: primary.color }]}
+            >
+              <Text style={styles.matchBadgeText}>
+                {primary.arrow} {primary.match}% Match
+              </Text>
+            </View>
+            <Text style={styles.primaryLabel}>{primary.label}</Text>
+          </View>
         </View>
 
-        {/* Similar Types */}
-        <View style={styles.similarSection}>
-          <Text style={styles.similarSectionTitle}>
-            🏹 Your Personality Neighbours
-          </Text>
-          <Text style={styles.similarSectionSubtitle}>
-            Other archetypes Cupid's arrow grazed
-          </Text>
-          <View style={styles.similarCardsContainer}>
-            {similar.map((arch, i) => (
-              <SimilarCard
-                key={arch.key}
-                arch={arch}
-                rank={i + 2}
-                delay={200 + i * 180}
+        <View style={styles.contentSection}>
+          {/* Trait Spectrum */}
+          <View style={styles.traitCard}>
+            <Text style={styles.sectionTitle}>Your Trait Spectrum</Text>
+            {axes.map((ax, i) => (
+              <TraitBar
+                key={ax.key}
+                label={ax.label}
+                value={scores[ax.key as keyof AxisScore]}
+                maxVal={4}
+                color={ax.color}
+                delay={500 + i * 180}
               />
             ))}
           </View>
-        </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-            <Text style={styles.shareButtonText}>Share Results 🏹</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.retakeButton} onPress={onRetake}>
-            <Text style={styles.retakeButtonText}>Retake Test</Text>
-          </TouchableOpacity>
+          {/* Description */}
+          {primary.description && (
+            <View style={[styles.reportCard, { opacity: showContent ? 1 : 0 }]}>
+              <Markdown style={markdownStyles}>
+                {primary.description.replace(/\\n/g, "\n")}
+              </Markdown>
+            </View>
+          )}
+
+          {/* ACCURACY SLIDER IS HERE */}
+          <View style={{ opacity: showContent ? 1 : 0 }}>
+            <AccuracySlider />
+          </View>
+
+          {/* Similar Types */}
+          <View style={styles.similarSection}>
+            <Text style={styles.similarSectionTitle}>Bohra Compatibility</Text>
+            <Text style={styles.similarSectionSubtitle}>
+              Your Compatibility with Other Types of Bohras
+            </Text>
+            <View style={styles.gridContainer}>
+              {similar.map((arch, i) => (
+                <GridCard
+                  key={arch.key}
+                  arch={arch}
+                  rank={i + 2}
+                  delay={200 + i * 180}
+                  onPress={(a: ArchetypeRanking) => {
+                    setSelectedArch(a);
+                    setModalVisible(true);
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <Text style={styles.shareButtonText}>Share Results 🏹</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.retakeButton} onPress={onRetake}>
+              <Text style={styles.retakeButtonText}>Retake Test</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      <ArchetypeModal
+        arch={selectedArch}
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+      />
+    </>
   );
 };
 
@@ -734,6 +893,105 @@ const sliderStyles = StyleSheet.create({
   submittedSub: { fontFamily: Fonts.sans, fontSize: 13, color: C.darkSoft },
 });
 
+const modalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+  },
+  backdropPress: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  container: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    width: "100%",
+    maxWidth: 480,
+    maxHeight: "85%",
+    overflow: "hidden",
+    shadowColor: "rgba(0,0,0,0.3)",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 1,
+    shadowRadius: 40,
+    elevation: 10,
+  },
+  closeBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  scrollView: {
+    maxHeight: Dimensions.get("window").height * 0.8,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+  imageWrapper: {
+    paddingTop: 16,
+  },
+  image: {
+    width: "100%",
+    height: 220,
+  },
+  imagePlaceholder: {
+    width: "100%",
+    height: 220,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  matchBadge: {
+    alignSelf: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginTop: -16,
+  },
+  matchBadgeText: {
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  title: {
+    fontFamily: Fonts.serif,
+    fontSize: 28,
+    fontWeight: "800",
+    color: C.dark,
+    textAlign: "center",
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 24,
+  },
+  descriptionContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+  },
+  noDescription: {
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    color: C.darkSoft,
+    textAlign: "center",
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    fontStyle: "italic",
+  },
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.warmBg },
   contentContainer: { paddingBottom: 40 },
@@ -856,11 +1114,16 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 22,
   },
-  similarCardsContainer: { gap: 14 },
-  similarCard: {
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  gridCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 22,
+    overflow: "hidden",
+    width: "48%" as any,
     shadowColor: "rgba(42, 31, 23, 0.06)",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1,
@@ -879,6 +1142,7 @@ const styles = StyleSheet.create({
     paddingLeft: 18,
     borderTopRightRadius: 16,
     borderBottomLeftRadius: 16,
+    zIndex: 1,
   },
   rankBadgeText: {
     fontFamily: Fonts.sans,
@@ -886,50 +1150,39 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#FFFFFF",
   },
-  similarCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
+  gridImageWrapper: {
+    padding: 12,
   },
-  similarIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
+  gridImage: {
+    width: "100%",
+    height: 120,
+    borderRadius: 10,
+  },
+  gridImagePlaceholder: {
+    width: "100%",
+    height: 120,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
-  similarEmoji: { fontSize: 22 },
-  similarInfo: { flex: 1 },
-  similarLabel: {
+  gridEmoji: { fontSize: 48 },
+  gridCardInfo: {
+    padding: 12,
+    alignItems: "center",
+  },
+  gridLabel: {
     fontFamily: Fonts.serif,
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "bold",
     color: C.dark,
+    textAlign: "center",
+    marginBottom: 4,
   },
-  similarPercentage: {
+  gridMatch: {
     fontFamily: Fonts.sans,
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 13,
+    fontWeight: "700",
   },
-  similarProgressContainer: { marginBottom: 10 },
-  similarProgressLabel: {
-    fontFamily: Fonts.sans,
-    fontSize: 11,
-    fontWeight: "bold",
-    color: "#BBBBBB",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 5,
-  },
-  similarProgressBar: {
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: `${C.goldPale}40`,
-    overflow: "hidden",
-  },
-  similarProgressFill: { height: "100%", borderRadius: 4 },
 
   actionsContainer: {
     flexDirection: "row",

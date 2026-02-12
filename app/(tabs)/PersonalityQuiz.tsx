@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -374,12 +375,11 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.header}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>🏹</Text>
-          </View>
-          <Text style={styles.logo}>Bohri Cupid</Text>
-        </View>
+        <Image
+          source={require('../../assets/images/Group 38.png')}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
 
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
@@ -473,10 +473,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     width: '100%',
   },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  headerLogo: {
+    width: isMobile ? 355 : 444,
+    height: isMobile ? 119 : 149,
     marginBottom: 16,
   },
   logoCircle: {
