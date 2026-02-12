@@ -1,18 +1,20 @@
-import { Tabs } from 'expo-router';
 import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
+import { useFonts, Poppins_600SemiBold } from '@expo-google-fonts/poppins';
 import { Stack } from 'expo-router';
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Poppins_600SemiBold,
+  });
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
   return (
     <Stack
       screenOptions={{
-        headerShown: false, // Hide header for webview
+        headerShown: false,
       }}
     />
   );
