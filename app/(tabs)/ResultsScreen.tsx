@@ -78,44 +78,6 @@ interface ResultsScreenProps {
 
 // --- COMPONENTS ---
 
-const TraitBar = ({ label, value, maxVal, color, delay }: any) => {
-  const [animatedWidth] = useState(new Animated.Value(0));
-
-  useEffect(() => {
-    setTimeout(() => {
-      Animated.timing(animatedWidth, {
-        toValue: (value / maxVal) * 100,
-        duration: 1000,
-        useNativeDriver: false,
-      }).start();
-    }, delay);
-  }, []);
-
-  return (
-    <View style={styles.traitBarContainer}>
-      <View style={styles.traitBarHeader}>
-        <Text style={styles.traitBarLabel}>{label}</Text>
-        <Text style={[styles.traitBarValue, { color }]}>
-          {value.toFixed(1)} / {maxVal}
-        </Text>
-      </View>
-      <View style={styles.traitBarBackground}>
-        <Animated.View
-          style={[
-            styles.traitBarFill,
-            {
-              backgroundColor: color,
-              width: animatedWidth.interpolate({
-                inputRange: [0, 100],
-                outputRange: ["0%", "100%"],
-              }),
-            },
-          ]}
-        />
-      </View>
-    </View>
-  );
-};
 
 const GridCard = ({ arch, rank, delay, onPress }: any) => {
   const [visible, setVisible] = useState(false);
@@ -304,115 +266,110 @@ const ArchetypeModal = ({
   );
 };
 
-// --- NEW ACCURACY SLIDER COMPONENT ---
+// --- ACCURACY SLIDER COMPONENT ---
 const AccuracySlider = () => {
   const [value, setValue] = useState(3);
   const [submitted, setSubmitted] = useState(false);
   const [trackWidth, setTrackWidth] = useState(0);
 
-  const pan = useRef(new Animated.Value(0)).current;
+  const thumbAnim = useRef(new Animated.Value(0.5)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Refs to avoid stale closures in PanResponder
+  const valueRef = useRef(value);
+  const trackWidthRef = useRef(trackWidth);
+  valueRef.current = value;
+  trackWidthRef.current = trackWidth;
 
   const current = SLIDER_LABELS[value - 1];
 
-  // Calculate thumb position based on value
-  const getPositionFromValue = (val: number) => {
-    return ((val - 1) / 4) * trackWidth;
+  const animateToValue = (newValue: number) => {
+    const fraction = (newValue - 1) / 4;
+    Animated.spring(thumbAnim, {
+      toValue: fraction,
+      useNativeDriver: false,
+      friction: 7,
+      tension: 80,
+    }).start();
   };
 
-  // Calculate value from position
-  const getValueFromPosition = (position: number) => {
-    if (trackWidth === 0) return value;
-    const stepWidth = trackWidth / 4;
-    const step = Math.round(position / stepWidth);
-    return Math.max(1, Math.min(5, step + 1));
-  };
-
-  // Pulse animation
   const triggerPulse = () => {
     Animated.sequence([
       Animated.timing(scaleAnim, {
         toValue: 1.3,
-        duration: 150,
+        duration: 120,
         useNativeDriver: true,
       }),
       Animated.timing(scaleAnim, {
         toValue: 1,
-        duration: 150,
+        duration: 120,
         useNativeDriver: true,
       }),
     ]).start();
   };
 
-  // Pan responder for dragging
+  const selectValue = (newValue: number) => {
+    setValue(newValue);
+    animateToValue(newValue);
+    triggerPulse();
+  };
+
+  // Track the drag start value so we always compute from the correct origin
+  const dragStartValueRef = useRef(value);
+
+  // PanResponder for drag - uses refs for fresh values
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 5,
 
       onPanResponderGrant: () => {
-        // Set offset to current position
-        pan.setOffset(getPositionFromValue(value));
-        pan.setValue(0);
+        // Capture the value at drag start
+        dragStartValueRef.current = valueRef.current;
       },
 
-      onPanResponderMove: (_, gestureState) => {
-        // Update pan value
-        pan.setValue(gestureState.dx);
-      },
+      onPanResponderMove: (_, gs) => {
+        const tw = trackWidthRef.current;
+        if (tw === 0) return;
+        const startPos = ((dragStartValueRef.current - 1) / 4) * tw;
+        const newPos = Math.max(0, Math.min(tw, startPos + gs.dx));
+        thumbAnim.setValue(newPos / tw);
 
-      onPanResponderRelease: (_, gestureState) => {
-        pan.flattenOffset();
-
-        // Get final position
-        const finalPosition = getPositionFromValue(value) + gestureState.dx;
-        const clampedPosition = Math.max(
-          0,
-          Math.min(trackWidth, finalPosition),
-        );
-
-        // Calculate new value
-        const newValue = getValueFromPosition(clampedPosition);
-
-        // Snap to position
-        const targetPosition = getPositionFromValue(newValue);
-
-        Animated.spring(pan, {
-          toValue: targetPosition,
-          useNativeDriver: false,
-          friction: 7,
-          tension: 40,
-        }).start();
-
-        if (newValue !== value) {
-          setValue(newValue);
+        // Live-snap: update value state as thumb crosses step boundaries
+        const stepWidth = tw / 4;
+        const snappedValue = Math.max(1, Math.min(5, Math.round(newPos / stepWidth) + 1));
+        if (snappedValue !== valueRef.current) {
+          valueRef.current = snappedValue;
+          setValue(snappedValue);
           triggerPulse();
         }
+      },
+
+      onPanResponderRelease: (_, gs) => {
+        const tw = trackWidthRef.current;
+        if (tw === 0) return;
+        const startPos = ((dragStartValueRef.current - 1) / 4) * tw;
+        const finalPos = Math.max(0, Math.min(tw, startPos + gs.dx));
+        const stepWidth = tw / 4;
+        const newValue = Math.max(1, Math.min(5, Math.round(finalPos / stepWidth) + 1));
+
+        setValue(newValue);
+        valueRef.current = newValue;
+        animateToValue(newValue);
       },
     }),
   ).current;
 
-  // Update pan position when value changes
+  // Set initial position once track is measured
   useEffect(() => {
     if (trackWidth > 0) {
-      Animated.spring(pan, {
-        toValue: getPositionFromValue(value),
-        useNativeDriver: false,
-        friction: 7,
-        tension: 40,
-      }).start();
+      thumbAnim.setValue((value - 1) / 4);
     }
-  }, [value, trackWidth]);
-
-  const handleTap = (newValue: number) => {
-    setValue(newValue);
-    triggerPulse();
-  };
+  }, [trackWidth]);
 
   const handleSubmit = () => {
     setSubmitted(true);
     console.log("Feedback submitted:", value);
-    // TODO: Save to Firestore
   };
 
   if (submitted) {
@@ -429,10 +386,14 @@ const AccuracySlider = () => {
     );
   }
 
-  const thumbLeft = pan.interpolate({
-    inputRange: [0, trackWidth || 1],
-    outputRange: [0, trackWidth || 1],
-    extrapolate: "clamp",
+  const fillWidth = thumbAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  });
+
+  const thumbTranslate = thumbAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, trackWidth],
   });
 
   return (
@@ -464,36 +425,37 @@ const AccuracySlider = () => {
 
           {/* Fill */}
           <Animated.View
-            style={[
-              sliderStyles.trackFill,
-              {
-                width: thumbLeft,
-              },
-            ]}
+            style={[sliderStyles.trackFill, { width: fillWidth }]}
           />
 
-          {/* Dots */}
-          <View style={sliderStyles.dotsContainer} pointerEvents="none">
+          {/* Tap targets for each step */}
+          <View style={sliderStyles.dotsContainer}>
             {[1, 2, 3, 4, 5].map((v) => (
-              <View
+              <TouchableOpacity
                 key={v}
+                onPress={() => selectValue(v)}
                 style={[
-                  sliderStyles.dot,
+                  sliderStyles.dotTouchArea,
                   { left: `${((v - 1) / 4) * 100}%` },
-                  v <= value && sliderStyles.dotActive,
-                  v === value && sliderStyles.dotCurrent,
                 ]}
-              />
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    sliderStyles.dot,
+                    v <= value && sliderStyles.dotActive,
+                    v === value && sliderStyles.dotCurrent,
+                  ]}
+                />
+              </TouchableOpacity>
             ))}
           </View>
 
-          {/* Draggable Thumb */}
+          {/* Thumb */}
           <Animated.View
             style={[
               sliderStyles.thumb,
-              {
-                transform: [{ translateX: thumbLeft }],
-              },
+              { transform: [{ translateX: thumbTranslate }] },
             ]}
             {...panResponder.panHandlers}
           >
@@ -508,7 +470,7 @@ const AccuracySlider = () => {
           {[1, 2, 3, 4, 5].map((v) => (
             <TouchableOpacity
               key={v}
-              onPress={() => handleTap(v)}
+              onPress={() => selectValue(v)}
               style={sliderStyles.labelTouch}
             >
               <Text
@@ -532,7 +494,6 @@ const AccuracySlider = () => {
 };
 // --- MAIN RESULTS SCREEN ---
 const ResultsScreen: React.FC<ResultsScreenProps> = ({
-  scores,
   rankings,
   onRetake,
 }) => {
@@ -591,13 +552,6 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   const primary = displayRankings[0];
   const similar = displayRankings.slice(1, 5);
 
-  const axes = [
-    { key: "HP", label: "Habitual Practice", color: C.orange },
-    { key: "WP", label: "Why Practice", color: C.gold },
-    { key: "HF", label: "How Faith", color: C.teal },
-    { key: "CI", label: "Community Importance", color: C.rose },
-  ];
-
   const handleShare = async () => {
     try {
       const shareMessage = `🏹 Bohri Cupid Personality Results\n\nMy Top Match: ${primary.label} (${primary.match}%)\n\nDiscover your Bohra personality with Bohri Cupid!`;
@@ -635,6 +589,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
           </View>
 
           <View style={[styles.primaryResult, { opacity: loaded ? 1 : 0 }]}>
+            <Text style={styles.primaryLabel}>{primary.label}</Text>
             <View
               style={[styles.matchBadge, { backgroundColor: primary.color }]}
             >
@@ -642,26 +597,10 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
                 {primary.arrow} {primary.match}% Match
               </Text>
             </View>
-            <Text style={styles.primaryLabel}>{primary.label}</Text>
           </View>
         </View>
 
         <View style={styles.contentSection}>
-          {/* Trait Spectrum */}
-          <View style={styles.traitCard}>
-            <Text style={styles.sectionTitle}>Your Trait Spectrum</Text>
-            {axes.map((ax, i) => (
-              <TraitBar
-                key={ax.key}
-                label={ax.label}
-                value={scores[ax.key as keyof AxisScore]}
-                maxVal={4}
-                color={ax.color}
-                delay={500 + i * 180}
-              />
-            ))}
-          </View>
-
           {/* Description */}
           {primary.description && (
             <View style={[styles.reportCard, { opacity: showContent ? 1 : 0 }]}>
@@ -815,13 +754,19 @@ const sliderStyles = StyleSheet.create({
     height: "100%",
     justifyContent: "center",
   },
-  dot: {
+  dotTouchArea: {
     position: "absolute",
+    width: 36,
+    height: 36,
+    marginLeft: -18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dot: {
     width: 10,
     height: 10,
     borderRadius: 5,
     backgroundColor: "rgba(255,255,255,0.8)",
-    marginLeft: -5,
   },
   dotActive: { backgroundColor: C.orange },
   dotCurrent: {
@@ -939,9 +884,7 @@ const modalStyles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 32,
   },
-  imageWrapper: {
-    paddingTop: 16,
-  },
+  imageWrapper: {},
   image: {
     width: "100%",
     height: 220,
@@ -1005,11 +948,9 @@ const styles = StyleSheet.create({
   heroSection: {
     backgroundColor: C.bg,
     paddingTop: 48,
-    paddingBottom: 72,
+    paddingBottom: 32,
     paddingHorizontal: 16,
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: `${C.goldPale}60`,
   },
   mascotContainer: { marginBottom: 8 },
   mascotImage: { width: 160, height: 160 },
@@ -1018,7 +959,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 20,
     borderRadius: 20,
-    marginBottom: 14,
   },
   matchBadgeText: {
     fontFamily: Fonts.sans,
@@ -1033,7 +973,7 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: "800",
     color: C.dark,
-    marginBottom: 10,
+    marginBottom: 14,
     textAlign: "center",
   },
   contentSection: {
@@ -1042,47 +982,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingHorizontal: 16,
   },
-
-  traitCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 26,
-    marginTop: -34,
-    shadowColor: "rgba(42, 31, 23, 0.06)",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 24,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: `${C.goldPale}40`,
-  },
-  sectionTitle: {
-    fontFamily: Fonts.serif,
-    fontSize: 20,
-    fontWeight: "bold",
-    color: C.dark,
-    marginBottom: 20,
-  },
-  traitBarContainer: { marginBottom: 18 },
-  traitBarHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 5,
-  },
-  traitBarLabel: {
-    fontFamily: Fonts.sans,
-    fontSize: 13,
-    fontWeight: "600",
-    color: C.darkSoft,
-  },
-  traitBarValue: { fontFamily: Fonts.sans, fontSize: 13, fontWeight: "bold" },
-  traitBarBackground: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: `${C.goldPale}40`,
-    overflow: "hidden",
-  },
-  traitBarFill: { height: "100%", borderRadius: 5 },
 
   reportCard: {
     backgroundColor: "#FFFFFF",
