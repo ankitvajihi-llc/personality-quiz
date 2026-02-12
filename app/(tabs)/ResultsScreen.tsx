@@ -5,6 +5,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Easing,
   Image,
   Modal,
   PanResponder,
@@ -78,7 +79,6 @@ interface ResultsScreenProps {
 
 // --- COMPONENTS ---
 
-
 const GridCard = ({ arch, rank, delay, onPress }: any) => {
   const [visible, setVisible] = useState(false);
 
@@ -119,7 +119,19 @@ const GridCard = ({ arch, rank, delay, onPress }: any) => {
         <Text style={styles.gridLabel} numberOfLines={1}>
           {arch.label}
         </Text>
-        <Text style={[styles.gridMatch, { color: arch.match > 70 ? "#4CAF50" : arch.match >= 50 ? "#FF9800" : "#E53935" }]}>
+        <Text
+          style={[
+            styles.gridMatch,
+            {
+              color:
+                arch.match > 70
+                  ? "#4CAF50"
+                  : arch.match >= 50
+                    ? "#FF9800"
+                    : "#E53935",
+            },
+          ]}
+        >
           {arch.match}% match
         </Text>
       </View>
@@ -337,7 +349,10 @@ const AccuracySlider = () => {
 
         // Live-snap: update value state as thumb crosses step boundaries
         const stepWidth = tw / 4;
-        const snappedValue = Math.max(1, Math.min(5, Math.round(newPos / stepWidth) + 1));
+        const snappedValue = Math.max(
+          1,
+          Math.min(5, Math.round(newPos / stepWidth) + 1),
+        );
         if (snappedValue !== valueRef.current) {
           valueRef.current = snappedValue;
           setValue(snappedValue);
@@ -351,7 +366,10 @@ const AccuracySlider = () => {
         const startPos = ((dragStartValueRef.current - 1) / 4) * tw;
         const finalPos = Math.max(0, Math.min(tw, startPos + gs.dx));
         const stepWidth = tw / 4;
-        const newValue = Math.max(1, Math.min(5, Math.round(finalPos / stepWidth) + 1));
+        const newValue = Math.max(
+          1,
+          Math.min(5, Math.round(finalPos / stepWidth) + 1),
+        );
 
         setValue(newValue);
         valueRef.current = newValue;
@@ -552,6 +570,53 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   const primary = displayRankings[0];
   const similar = displayRankings.slice(1, 5);
 
+  // animated background pulse behind mascot to fill empty space
+  const bgScale = useRef(new Animated.Value(1)).current;
+  const bgOpacity = useRef(new Animated.Value(0.25)).current;
+
+  useEffect(() => {
+    // start from baseline
+    bgScale.setValue(1);
+    bgOpacity.setValue(0.25);
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(bgScale, {
+            toValue: 1.06,
+            duration: 1400,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(bgOpacity, {
+            toValue: 0.5,
+            duration: 1400,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(bgScale, {
+            toValue: 1,
+            duration: 1400,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(bgOpacity, {
+            toValue: 0.25,
+            duration: 1400,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+      { iterations: -1 },
+    );
+
+    pulse.start();
+    return () => pulse.stop();
+  }, [bgScale, bgOpacity]);
+
   const handleShare = async () => {
     try {
       const shareMessage = `🏹 Bohri Cupid Personality Results\n\nMy Top Match: ${primary.label} (${primary.match}%)\n\nDiscover your Bohra personality with Bohri Cupid!`;
@@ -581,11 +646,30 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
         {/* Hero Section */}
         <View style={styles.heroSection}>
           <View style={[styles.mascotContainer, { opacity: loaded ? 1 : 0 }]}>
-            <Image
-              source={require("../../assets/images/bohricupid.png")}
-              style={styles.mascotImage}
-              resizeMode="contain"
+            <Animated.View
+              style={[
+                styles.mascotBg,
+                {
+                  backgroundColor: primary?.color || C.gold,
+                  transform: [{ scale: bgScale }],
+                  opacity: bgOpacity,
+                },
+              ]}
             />
+
+            {primary && primary.imageUrl ? (
+              <Image
+                source={{ uri: primary.imageUrl }}
+                style={styles.mascotImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <Image
+                source={require("../../assets/images/bohricupid.png")}
+                style={styles.mascotImage}
+                resizeMode="contain"
+              />
+            )}
           </View>
 
           <View style={[styles.primaryResult, { opacity: loaded ? 1 : 0 }]}>
@@ -882,7 +966,7 @@ const modalStyles = StyleSheet.create({
     maxHeight: Dimensions.get("window").height * 0.8,
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 12,
   },
   imageWrapper: {},
   image: {
@@ -947,13 +1031,27 @@ const styles = StyleSheet.create({
   loadingText: { fontFamily: Fonts.sans, fontSize: 16, color: C.darkSoft },
   heroSection: {
     backgroundColor: C.bg,
-    paddingTop: 48,
-    paddingBottom: 32,
+    paddingTop: 24,
+    paddingBottom: 2,
     paddingHorizontal: 16,
     alignItems: "center",
   },
-  mascotContainer: { marginBottom: 8 },
-  mascotImage: { width: 160, height: 160 },
+  mascotContainer: {
+    marginBottom: 2,
+    position: "relative",
+    width: 300,
+    height: 300,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  mascotBg: {
+    position: "absolute",
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    zIndex: 0,
+  },
+  mascotImage: { width: 300, height: 300, zIndex: 1 },
   primaryResult: { alignItems: "center", marginTop: 12 },
   matchBadge: {
     paddingVertical: 5,
