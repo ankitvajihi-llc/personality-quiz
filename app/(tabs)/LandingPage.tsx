@@ -193,8 +193,9 @@ const styles = StyleSheet.create({
     height: isMobile ? 200 : 240,
   },
   subtitle: {
-    fontFamily: "Poppins_600SemiBold",
-    fontSize: 20,
+    fontFamily: Fonts.sans,
+    fontWeight: Fonts.weights.semibold,
+    fontSize: 16,
     color: "#D4A843",
     letterSpacing: 1,
     marginBottom: 24,
