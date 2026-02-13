@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontFamily: "Poppins_600SemiBold",
-    fontSize: 16,
+    fontSize: 20,
     color: "#D4A843",
     letterSpacing: 1,
     marginBottom: 24,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   description: {
     fontFamily: Fonts.sans,
     fontSize: 16,
-    color: "#6B5B4D",
+    color: "#3c332b",
     lineHeight: 28,
     marginBottom: 32,
     textAlign: "center",
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: "#4E3B2C",
+    color: "#2b1e13",
     fontFamily: Fonts.sans,
     outlineStyle: "none",
   } as any,
@@ -279,14 +279,14 @@ const styles = StyleSheet.create({
   footerText: {
     fontFamily: Fonts.sans,
     fontSize: 12,
-    color: "#BBBBBB",
+    color: "#494949",
     marginTop: 18,
     textAlign: "center",
   },
   poweredBy: {
     fontFamily: Fonts.sans,
     fontSize: 11,
-    color: "#A0A0A0",
+    color: "#4b4b4b",
     marginTop: 6,
     textAlign: "center",
     opacity: 0.9,
