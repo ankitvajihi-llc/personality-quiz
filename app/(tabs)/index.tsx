@@ -12,15 +12,20 @@ export default function Index() {
   const [results, setResults] = useState<{
     scores: AxisScores;
     rankings: ArchetypeRankingUI[];
+    resultDocId: string;
   } | null>(null);
 
-  const handleStart = () => {
+  const [userName, setUserName] = useState("");
+
+  const handleStart = (name: string) => {
+    setUserName(name);
     setPhase("quiz");
   };
 
   const handleQuizComplete = (payload: {
     scores: AxisScores;
     rankings: ArchetypeRankingUI[];
+    resultDocId: string;
   }) => {
     setResults(payload);
     setPhase("results");
@@ -34,11 +39,12 @@ export default function Index() {
   return (
     <SafeAreaView style={styles.container}>
       {phase === "landing" && <LandingPage onStart={handleStart} />}
-      {phase === "quiz" && <PersonalityQuiz onComplete={handleQuizComplete} />}
+      {phase === "quiz" && <PersonalityQuiz userName={userName} onComplete={handleQuizComplete} />}
       {phase === "results" && results && (
         <ResultsScreen
           scores={results.scores}
           rankings={results.rankings}
+          resultDocId={results.resultDocId}
           onRetake={handleRetake}
         />
       )}

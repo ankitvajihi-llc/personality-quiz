@@ -1,5 +1,5 @@
 import { BlurView } from "expo-blur";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -74,6 +74,7 @@ interface ArchetypeRanking {
 interface ResultsScreenProps {
   scores: AxisScore;
   rankings: ArchetypeRanking[];
+  resultDocId: string;
   onRetake: () => void;
 }
 
@@ -134,6 +135,9 @@ const GridCard = ({ arch, rank, delay, onPress }: any) => {
         >
           {arch.match}% match
         </Text>
+        <View style={styles.learnMoreBtn}>
+          <Text style={styles.learnMoreText}>Learn More</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -279,9 +283,9 @@ const ArchetypeModal = ({
 };
 
 // --- ACCURACY SLIDER COMPONENT ---
-const AccuracySlider = () => {
+const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
   const [value, setValue] = useState(3);
-  const [submitted, setSubmitted] = useState(false);
+
   const [trackWidth, setTrackWidth] = useState(0);
 
   const thumbAnim = useRef(new Animated.Value(0.5)).current;
@@ -320,10 +324,20 @@ const AccuracySlider = () => {
     ]).start();
   };
 
+  const updateFeedback = async (newValue: number) => {
+    try {
+      const resultRef = doc(db, "personality_quiz_results", resultDocId);
+      await updateDoc(resultRef, { feedback: newValue });
+    } catch (error) {
+      console.error("Error updating feedback:", error);
+    }
+  };
+
   const selectValue = (newValue: number) => {
     setValue(newValue);
     animateToValue(newValue);
     triggerPulse();
+    updateFeedback(newValue);
   };
 
   // Track the drag start value so we always compute from the correct origin
@@ -374,6 +388,7 @@ const AccuracySlider = () => {
         setValue(newValue);
         valueRef.current = newValue;
         animateToValue(newValue);
+        updateFeedback(newValue);
       },
     }),
   ).current;
@@ -385,24 +400,7 @@ const AccuracySlider = () => {
     }
   }, [trackWidth]);
 
-  const handleSubmit = () => {
-    setSubmitted(true);
-    console.log("Feedback submitted:", value);
-  };
 
-  if (submitted) {
-    return (
-      <View style={sliderStyles.container}>
-        <Text style={{ fontSize: 48, marginBottom: 8 }}>💖</Text>
-        <Text style={sliderStyles.submittedTitle}>
-          Thanks for your feedback!
-        </Text>
-        <Text style={sliderStyles.submittedSub}>
-          Cupid appreciates your honesty
-        </Text>
-      </View>
-    );
-  }
 
   const fillWidth = thumbAnim.interpolate({
     inputRange: [0, 1],
@@ -504,15 +502,13 @@ const AccuracySlider = () => {
         </View>
       </View>
 
-      <TouchableOpacity style={sliderStyles.submitBtn} onPress={handleSubmit}>
-        <Text style={sliderStyles.submitBtnText}>Submit Feedback ✨</Text>
-      </TouchableOpacity>
     </View>
   );
 };
 // --- MAIN RESULTS SCREEN ---
 const ResultsScreen: React.FC<ResultsScreenProps> = ({
   rankings,
+  resultDocId,
   onRetake,
 }) => {
   const [loaded, setLoaded] = useState(false);
@@ -696,7 +692,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
 
           {/* ACCURACY SLIDER IS HERE */}
           <View style={{ opacity: showContent ? 1 : 0 }}>
-            <AccuracySlider />
+            <AccuracySlider resultDocId={resultDocId} />
           </View>
 
           {/* Similar Types */}
@@ -1179,6 +1175,20 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 14,
     fontWeight: "800",
+  },
+  learnMoreBtn: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: C.orange,
+  },
+  learnMoreText: {
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    fontWeight: "700",
+    color: C.orange,
   },
 
   actionsContainer: {

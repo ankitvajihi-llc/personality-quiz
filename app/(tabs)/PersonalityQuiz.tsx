@@ -1,5 +1,12 @@
-import { addDoc, collection, doc, getDocs, orderBy, query } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+} from "firebase/firestore";
+import React, { useEffect, useState } from "react";
 
 import {
   ActivityIndicator,
@@ -10,12 +17,12 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { db } from '../firebase.config';
-import { Question, QuestionWeights } from '../utils/setupQuestions';
-import QuestionItem from './components/QuestionItem';
-import { Fonts } from '../fonts';
-import { ArchetypeData } from '../utils/setupArchetypes';
+} from "react-native";
+import { db } from "../firebase.config";
+import { Fonts } from "../fonts";
+import { ArchetypeData } from "../utils/setupArchetypes";
+import { Question, QuestionWeights } from "../utils/setupQuestions";
+import QuestionItem from "./components/QuestionItem";
 
 interface Answer {
   questionId: number;
@@ -51,20 +58,25 @@ export interface ArchetypeRankingUI {
 }
 
 interface PersonalityQuizProps {
-  onComplete?: (payload: { scores: AxisScores; rankings: ArchetypeRankingUI[] }) => void;
+  userName?: string;
+  onComplete?: (payload: {
+    scores: AxisScores;
+    rankings: ArchetypeRankingUI[];
+    resultDocId: string;
+  }) => void;
 }
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 const isMobile = width < 768;
 
-const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
+const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete }) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<number, Answer>>({});
   const [isComplete, setIsComplete] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [userId, setUserId] = useState('');
+  const [userId, setUserId] = useState("");
   const [focusedQuestionIndex, setFocusedQuestionIndex] = useState(0);
   const [archetypes, setArchetypes] = useState<ArchetypeData[]>([]);
 
@@ -75,28 +87,28 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
 
   const loadArchetypes = async () => {
     try {
-      const archetypesRef = collection(db, 'personality_archetypes');
-      const q = query(archetypesRef, orderBy('order', 'asc'));
+      const archetypesRef = collection(db, "personality_archetypes");
+      const q = query(archetypesRef, orderBy("order", "asc"));
       const querySnapshot = await getDocs(q);
-      
+
       const loadedArchetypes: ArchetypeData[] = [];
       querySnapshot.forEach((docSnap) => {
         loadedArchetypes.push({
           ...docSnap.data(),
-          id: docSnap.id
+          id: docSnap.id,
         } as ArchetypeData);
       });
-      
+
       setArchetypes(loadedArchetypes);
     } catch (error) {
-      console.error('Error loading archetypes:', error);
+      console.error("Error loading archetypes:", error);
     }
   };
 
   const loadQuestions = async () => {
     try {
-      const questionsRef = collection(db, 'personality_questions');
-      const q = query(questionsRef, orderBy('order', 'asc'));
+      const questionsRef = collection(db, "personality_questions");
+      const q = query(questionsRef, orderBy("order", "asc"));
       const querySnapshot = await getDocs(q);
 
       const loadedQuestions: Question[] = [];
@@ -107,32 +119,34 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
       setQuestions(loadedQuestions);
       setIsLoading(false);
     } catch (error) {
-      console.error('Error loading questions:', error);
+      console.error("Error loading questions:", error);
     }
   };
 
   const scaleOptions = [
-    { value: 0, label: 'Strongly Disagree' },
-    { value: 1, label: '' },
-    { value: 2, label: '' },
-    { value: 3, label: '' },
-    { value: 4, label: 'Strongly Agree' },
+    { value: 0, label: "Strongly Disagree" },
+    { value: 1, label: "" },
+    { value: 2, label: "" },
+    { value: 3, label: "" },
+    { value: 4, label: "Strongly Agree" },
   ];
 
   // --- FIXED CALCULATION LOGIC ---
-  const calculateWeightedScores = (allAnswers: Record<number, Answer>): AxisScores => {
-    console.log('=== STARTING CALCULATION ===');
-    
+  const calculateWeightedScores = (
+    allAnswers: Record<number, Answer>,
+  ): AxisScores => {
+    console.log("=== STARTING CALCULATION ===");
+
     // Initialize accumulators
     const rawScores = { HP: 0, WP: 0, HF: 0, CI: 0 };
     const maxPossible = { HP: 0, WP: 0, HF: 0, CI: 0 };
-    
+
     // Iterate specifically through the PROVIDED ANSWERS to ensure alignment
     Object.values(allAnswers).forEach((item) => {
       // 1. Force types to Number to prevent string concatenation/errors
       const rawAnswer = Number(item.answer);
-      const direction = Number(item.dir); 
-      
+      const direction = Number(item.dir);
+
       // Safety check for weights, defaulting to 0 if missing
       const wHP = Number(item.weights?.HP || 0);
       const wWP = Number(item.weights?.WP || 0);
@@ -140,10 +154,10 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
       const wCI = Number(item.weights?.CI || 0);
 
       // 2. Adjust for Direction
-      // Excel Logic: If Dir is -1, flipped = 4 - Answer. 
+      // Excel Logic: If Dir is -1, flipped = 4 - Answer.
       // Default: If Dir is 1 (or missing/0), use Answer as is.
-      const adjustedAnswer = (direction === -1) ? (4 - rawAnswer) : rawAnswer;
-      
+      const adjustedAnswer = direction === -1 ? 4 - rawAnswer : rawAnswer;
+
       // 3. Accumulate Raw Scores (Adjusted Answer * Weight)
       rawScores.HP += adjustedAnswer * wHP;
       rawScores.WP += adjustedAnswer * wWP;
@@ -158,8 +172,8 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
       maxPossible.CI += 4 * wCI;
     });
 
-    console.log('Raw Sums:', rawScores);
-    console.log('Max Possible:', maxPossible);
+    console.log("Raw Sums:", rawScores);
+    console.log("Max Possible:", maxPossible);
 
     // 5. Normalize to 0-4 scale
     // Formula: (Raw Total / Max Possible) * 4
@@ -175,11 +189,13 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
       CI: Number(normalize(rawScores.CI, maxPossible.CI).toFixed(2)),
     };
 
-    console.log('Final Normalized Scores:', finalScores);
+    console.log("Final Normalized Scores:", finalScores);
     return finalScores;
   };
 
-  const calculateArchetypePercentages = (userScores: AxisScores): ArchetypeMatch[] => {
+  const calculateArchetypePercentages = (
+    userScores: AxisScores,
+  ): ArchetypeMatch[] => {
     if (archetypes.length === 0) return [];
 
     // Max possible Euclidean distance in 4 dimensions on a 0-4 scale
@@ -196,23 +212,26 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
       // Euclidean Distance Formula
       const distance = Math.sqrt(
         Math.pow(userScores.HP - tgtHP, 2) +
-        Math.pow(userScores.WP - tgtWP, 2) +
-        Math.pow(userScores.HF - tgtHF, 2) +
-        Math.pow(userScores.CI - tgtCI, 2)
+          Math.pow(userScores.WP - tgtWP, 2) +
+          Math.pow(userScores.HF - tgtHF, 2) +
+          Math.pow(userScores.CI - tgtCI, 2),
       );
 
       // Convert Distance to Similarity Percentage
       // 0 distance = 100%, 8 distance = 0%
-      const similarity = (1 - (distance / MAX_DISTANCE)) * 100;
-      
+      const similarity = (1 - distance / MAX_DISTANCE) * 100;
+
       // Clamp between 0 and 100
-      const percentage = Math.max(0, Math.min(100, Number(similarity.toFixed(1))));
+      const percentage = Math.max(
+        0,
+        Math.min(100, Number(similarity.toFixed(1))),
+      );
 
       return {
         id: archetype.id,
-        archetype_id: doc(db, 'personality_archetypes', archetype.id),
+        archetype_id: doc(db, "personality_archetypes", archetype.id),
         percentage,
-        distance
+        distance,
       };
     });
 
@@ -222,7 +241,7 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
   // --- END FIXED LOGIC ---
 
   const handleAnswerSelect = (questionId: number, value: number) => {
-    const question = questions.find(q => q.id === questionId);
+    const question = questions.find((q) => q.id === questionId);
     if (!question) return;
 
     const newAnswers = {
@@ -232,26 +251,27 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
         question: question.text,
         answer: value,
         weights: question.weights,
-        dir: question.dir
-      }
+        dir: question.dir,
+      },
     };
     setAnswers(newAnswers);
 
     const currentBatch = questions.slice(currentQuestion, currentQuestion + 3);
-    const nextUnanswered = currentBatch.findIndex((q, idx) => 
-      !newAnswers[q.id] && q.id !== questionId
+    const nextUnanswered = currentBatch.findIndex(
+      (q, idx) => !newAnswers[q.id] && q.id !== questionId,
     );
-    
+
     if (nextUnanswered !== -1) {
       setFocusedQuestionIndex(nextUnanswered);
     }
   };
 
   const currentBatch = questions.slice(currentQuestion, currentQuestion + 3);
-  const isBatchComplete = currentBatch.length > 0 && currentBatch.every(q => !!answers[q.id]);
+  const isBatchComplete =
+    currentBatch.length > 0 && currentBatch.every((q) => !!answers[q.id]);
 
   useEffect(() => {
-    const firstUnanswered = currentBatch.findIndex(q => !answers[q.id]);
+    const firstUnanswered = currentBatch.findIndex((q) => !answers[q.id]);
     setFocusedQuestionIndex(firstUnanswered !== -1 ? firstUnanswered : 0);
   }, [currentQuestion, answers, currentBatch]);
 
@@ -272,27 +292,30 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
       const weightedScores = calculateWeightedScores(finalAnswers);
       const archetypeMatches = calculateArchetypePercentages(weightedScores);
 
-      const uiRankings: ArchetypeRankingUI[] = archetypeMatches.map((match) => {
-        const archetype = archetypes.find(a => a.id === match.id);
-        if (!archetype) return null;
-        
-        return {
-          key: match.id,
-          match: match.percentage,
-          label: archetype.title,
-          title: archetype.title,
-          description: archetype.description,
-          color: '#D4654A',
-          emoji: '🏹',
-          arrow: '🏹',
-        };
-      }).filter(Boolean) as ArchetypeRankingUI[];
+      const uiRankings: ArchetypeRankingUI[] = archetypeMatches
+        .map((match) => {
+          const archetype = archetypes.find((a) => a.id === match.id);
+          if (!archetype) return null;
+
+          return {
+            key: match.id,
+            match: match.percentage,
+            label: archetype.title,
+            title: archetype.title,
+            description: archetype.description,
+            color: "#D4654A",
+            emoji: "🏹",
+            arrow: "🏹",
+          };
+        })
+        .filter(Boolean) as ArchetypeRankingUI[];
 
       const quizData = {
-        userId: userId || 'anonymous',
+        userId: userId || "anonymous",
+        name: userName || "",
         answers: finalAnswers,
         scores: weightedScores,
-        archetypes: archetypeMatches.map(m => ({
+        archetypes: archetypeMatches.map((m) => ({
           id: m.id,
           archetype_id: m.archetype_id,
           percentage: m.percentage,
@@ -300,13 +323,16 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
         })),
         totalQuestions: questions.length,
         completedAt: new Date().toISOString(),
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
-      const docRef = await addDoc(collection(db, 'personality_quiz_results'), quizData);
+      const docRef = await addDoc(
+        collection(db, "personality_quiz_results"),
+        quizData,
+      );
 
       if (onComplete) {
-        onComplete({ scores: weightedScores, rankings: uiRankings });
+        onComplete({ scores: weightedScores, rankings: uiRankings, resultDocId: docRef.id });
       }
 
       setIsComplete(true);
@@ -373,10 +399,13 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+    >
       <View style={styles.header}>
         <Image
-          source={require('../../assets/images/Group 38.png')}
+          source={require("../../assets/images/Group 38.png")}
           style={styles.headerLogo}
           resizeMode="contain"
         />
@@ -411,7 +440,9 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
                 onAnswerSelect={(val) => handleAnswerSelect(q.id, val)}
                 scaleOptions={scaleOptions}
               />
-              {index < currentBatch.length - 1 && <View style={{ height: 0 }} />}
+              {index < currentBatch.length - 1 && (
+                <View style={{ height: 0 }} />
+              )}
             </React.Fragment>
           );
         })}
@@ -421,13 +452,15 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
         <TouchableOpacity
           style={[
             styles.nextButton,
-            !isBatchComplete && styles.nextButtonDisabled
+            !isBatchComplete && styles.nextButtonDisabled,
           ]}
           onPress={handleNext}
           disabled={!isBatchComplete}
         >
           <Text style={styles.nextButtonText}>
-            {currentQuestion + 3 >= questions.length ? 'See My Results 🏹' : 'Next →'}
+            {currentQuestion + 3 >= questions.length
+              ? "See My Results 🏹"
+              : "Next →"}
           </Text>
         </TouchableOpacity>
 
@@ -451,27 +484,27 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ onComplete }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FEF6EC',
+    backgroundColor: "#FEF6EC",
   },
   contentContainer: {
     padding: isMobile ? 16 : 24,
     maxWidth: 520,
-    width: '100%',
-    alignSelf: 'center',
+    width: "100%",
+    alignSelf: "center",
     paddingTop: 32,
     paddingBottom: 60,
   },
   centerContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FEF6EC',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FEF6EC",
     padding: 20,
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
-    width: '100%',
+    width: "100%",
   },
   headerLogo: {
     width: isMobile ? 355 : 444,
@@ -482,12 +515,12 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 2.5,
-    borderColor: '#D4A843',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#D4654A',
+    borderColor: "#D4A843",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#D4654A",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 20,
@@ -499,88 +532,88 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 20,
     fontWeight: Fonts.weights.bold,
-    color: '#2A1F17',
+    color: "#2A1F17",
     fontFamily: Fonts.serif,
   },
   progressContainer: {
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
   },
   progressText: {
     fontSize: 12,
-    color: '#BBBBBB',
+    color: "#BBBBBB",
     marginBottom: 7,
     fontWeight: Fonts.weights.medium,
     fontFamily: Fonts.sans,
   },
   progressBarBackground: {
-    width: '100%',
+    width: "100%",
     height: 5,
-    backgroundColor: 'rgba(245, 230, 184, 0.6)',
+    backgroundColor: "rgba(245, 230, 184, 0.6)",
     borderRadius: 3,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressBarFill: {
-    height: '100%',
-    backgroundColor: '#D4654A',
+    height: "100%",
+    backgroundColor: "#D4654A",
     borderRadius: 3,
   },
   backButton: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     paddingVertical: 3,
     marginBottom: 6,
   },
   backButtonText: {
     fontSize: 12,
-    color: '#D4654A',
+    color: "#D4654A",
     fontWeight: Fonts.weights.bold,
     letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     fontFamily: Fonts.sans,
   },
   cardContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     padding: isMobile ? 4 : 4,
     paddingHorizontal: isMobile ? 26 : 26,
-    width: '100%',
-    shadowColor: 'rgba(42, 31, 23, 0.06)',
+    width: "100%",
+    shadowColor: "rgba(42, 31, 23, 0.06)",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 1,
     shadowRadius: 24,
     elevation: 4,
     borderWidth: 1,
-    borderColor: 'rgba(245, 230, 184, 0.4)',
+    borderColor: "rgba(245, 230, 184, 0.4)",
   },
   footerContainer: {
     marginTop: 20,
-    width: '100%',
+    width: "100%",
   },
   nextButton: {
     paddingVertical: 15,
     borderRadius: 36,
-    backgroundColor: '#D4654A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: 'rgba(212, 101, 74, 0.3)',
+    backgroundColor: "#D4654A",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "rgba(212, 101, 74, 0.3)",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 20,
     elevation: 4,
   },
   nextButtonDisabled: {
-    backgroundColor: '#DDDDDD',
+    backgroundColor: "#DDDDDD",
     shadowOpacity: 0,
   },
   nextButtonText: {
     fontSize: 15,
     fontWeight: Fonts.weights.bold,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontFamily: Fonts.sans,
   },
   pageDotsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 7,
     marginTop: 16,
   },
@@ -588,48 +621,48 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: 'rgba(245, 230, 184, 0.8)',
+    backgroundColor: "rgba(245, 230, 184, 0.8)",
     opacity: 0.5,
   },
   pageDotActive: {
     width: 22,
-    backgroundColor: '#D4654A',
+    backgroundColor: "#D4654A",
     opacity: 1,
   },
   pageDotCompleted: {
-    backgroundColor: '#D4A843',
+    backgroundColor: "#D4A843",
     opacity: 0.5,
   },
   completionContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     padding: 40,
   },
   completionTitle: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#D4654A',
+    fontWeight: "bold",
+    color: "#D4654A",
     marginBottom: 16,
   },
   completionText: {
     fontSize: 18,
-    textAlign: 'center',
-    color: '#2A1F17',
+    textAlign: "center",
+    color: "#2A1F17",
     marginBottom: 8,
   },
   completionSubtext: {
     fontSize: 14,
-    textAlign: 'center',
-    color: '#8B7355',
+    textAlign: "center",
+    color: "#8B7355",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#8B7355',
+    color: "#8B7355",
   },
   errorText: {
     fontSize: 18,
-    color: '#D32F2F',
-    textAlign: 'center',
+    color: "#D32F2F",
+    textAlign: "center",
   },
 });
 

@@ -72,9 +72,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         <Text style={styles.subtitle}>PERSONALITY DISCOVERY</Text>
 
         <Text style={styles.description}>
-          Deen? Duniya? Or is it complicated? Reveal your true Bohra
-          personality. Discover how you relate to faith, community, tradition,
-          and modern life through 21 thoughtful questions.
+          Deen? Duniya? Or is it complicated?{"\n"}
+          Reveal your true Bohra personality — discover how you relate to faith,
+          community, tradition, and modern life through 21 thoughtful questions.
         </Text>
 
         <View style={styles.archetypeContainer}>
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontFamily: "Poppins_600SemiBold",
-    fontSize: 13,
+    fontSize: 16,
     color: "#D4A843",
     letterSpacing: 1,
     marginBottom: 24,
@@ -203,9 +203,9 @@ const styles = StyleSheet.create({
   },
   description: {
     fontFamily: Fonts.sans,
-    fontSize: 15,
-    color: "#8B7355",
-    lineHeight: 25.5,
+    fontSize: 16,
+    color: "#6B5B4D",
+    lineHeight: 28,
     marginBottom: 32,
     textAlign: "center",
   },
