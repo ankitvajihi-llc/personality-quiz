@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { db } from "../firebase.config";
 import { Fonts } from "../fonts";
+import { saveCrossProjectSnapshot } from "../utils/cloudFunctions"; // ✅ ADDED
 import { ArchetypeData } from "../utils/setupArchetypes";
 import { Question, QuestionWeights } from "../utils/setupQuestions";
 import QuestionItem from "./components/QuestionItem";
@@ -59,6 +60,8 @@ export interface ArchetypeRankingUI {
 
 interface PersonalityQuizProps {
   userName?: string;
+  userUid?: string | null; // ✅ ADDED
+  fromApp?: boolean; // ✅ ADDED
   onComplete?: (payload: {
     scores: AxisScores;
     rankings: ArchetypeRankingUI[];
@@ -69,7 +72,12 @@ interface PersonalityQuizProps {
 const { width } = Dimensions.get("window");
 const isMobile = width < 768;
 
-const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete }) => {
+const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
+  userName,
+  userUid, // ✅ ADDED
+  fromApp, // ✅ ADDED
+  onComplete,
+}) => {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<number, Answer>>({});
@@ -79,6 +87,7 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
   const [userId, setUserId] = useState("");
   const [focusedQuestionIndex, setFocusedQuestionIndex] = useState(0);
   const [archetypes, setArchetypes] = useState<ArchetypeData[]>([]);
+  const [consentChoice, setConsentChoice] = useState<boolean | null>(null); // ✅ ADDED
 
   useEffect(() => {
     loadQuestions();
@@ -131,41 +140,30 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
     { value: 4, label: "Strongly Agree" },
   ];
 
-  // --- FIXED CALCULATION LOGIC ---
   const calculateWeightedScores = (
     allAnswers: Record<number, Answer>,
   ): AxisScores => {
     console.log("=== STARTING CALCULATION ===");
 
-    // Initialize accumulators
     const rawScores = { HP: 0, WP: 0, HF: 0, CI: 0 };
     const maxPossible = { HP: 0, WP: 0, HF: 0, CI: 0 };
 
-    // Iterate specifically through the PROVIDED ANSWERS to ensure alignment
     Object.values(allAnswers).forEach((item) => {
-      // 1. Force types to Number to prevent string concatenation/errors
       const rawAnswer = Number(item.answer);
       const direction = Number(item.dir);
 
-      // Safety check for weights, defaulting to 0 if missing
       const wHP = Number(item.weights?.HP || 0);
       const wWP = Number(item.weights?.WP || 0);
       const wHF = Number(item.weights?.HF || 0);
       const wCI = Number(item.weights?.CI || 0);
 
-      // 2. Adjust for Direction
-      // Excel Logic: If Dir is -1, flipped = 4 - Answer.
-      // Default: If Dir is 1 (or missing/0), use Answer as is.
       const adjustedAnswer = direction === -1 ? 4 - rawAnswer : rawAnswer;
 
-      // 3. Accumulate Raw Scores (Adjusted Answer * Weight)
       rawScores.HP += adjustedAnswer * wHP;
       rawScores.WP += adjustedAnswer * wWP;
       rawScores.HF += adjustedAnswer * wHF;
       rawScores.CI += adjustedAnswer * wCI;
 
-      // 4. Accumulate Max Possible (Max Answer Value [4] * Weight)
-      // This ensures the normalization denominator perfectly matches the questions answered
       maxPossible.HP += 4 * wHP;
       maxPossible.WP += 4 * wWP;
       maxPossible.HF += 4 * wHF;
@@ -175,10 +173,8 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
     console.log("Raw Sums:", rawScores);
     console.log("Max Possible:", maxPossible);
 
-    // 5. Normalize to 0-4 scale
-    // Formula: (Raw Total / Max Possible) * 4
     const normalize = (raw: number, max: number) => {
-      if (max === 0) return 0; // Prevent divide by zero
+      if (max === 0) return 0;
       return (raw / max) * 4;
     };
 
@@ -198,18 +194,14 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
   ): ArchetypeMatch[] => {
     if (archetypes.length === 0) return [];
 
-    // Max possible Euclidean distance in 4 dimensions on a 0-4 scale
-    // Sqrt(4^2 + 4^2 + 4^2 + 4^2) = Sqrt(64) = 8
     const MAX_DISTANCE = 8.0;
 
     const matches = archetypes.map((archetype) => {
-      // Ensure target values are numbers
       const tgtHP = Number(archetype.axes_target?.HP || 0);
       const tgtWP = Number(archetype.axes_target?.WP || 0);
       const tgtHF = Number(archetype.axes_target?.HF || 0);
       const tgtCI = Number(archetype.axes_target?.CI || 0);
 
-      // Euclidean Distance Formula
       const distance = Math.sqrt(
         Math.pow(userScores.HP - tgtHP, 2) +
           Math.pow(userScores.WP - tgtWP, 2) +
@@ -217,11 +209,8 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
           Math.pow(userScores.CI - tgtCI, 2),
       );
 
-      // Convert Distance to Similarity Percentage
-      // 0 distance = 100%, 8 distance = 0%
       const similarity = (1 - distance / MAX_DISTANCE) * 100;
 
-      // Clamp between 0 and 100
       const percentage = Math.max(
         0,
         Math.min(100, Number(similarity.toFixed(1))),
@@ -235,10 +224,8 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
       };
     });
 
-    // Sort by highest percentage first
     return matches.sort((a, b) => b.percentage - a.percentage);
   };
-  // --- END FIXED LOGIC ---
 
   const handleAnswerSelect = (questionId: number, value: number) => {
     const question = questions.find((q) => q.id === questionId);
@@ -281,6 +268,11 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
     if (currentQuestion + 3 < questions.length) {
       setCurrentQuestion(currentQuestion + 3);
     } else {
+      // ✅ CHANGED: Don't submit immediately if from app
+      if (userUid && fromApp && consentChoice === null) {
+        // Just scroll down - consent banner will show
+        return;
+      }
       await submitQuiz(answers);
     }
   };
@@ -311,8 +303,8 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
         .filter(Boolean) as ArchetypeRankingUI[];
 
       const quizData = {
-        userId: userId || "anonymous",
-        name: userName || "",
+        userId: userUid || userId || "anonymous",
+        userName: userName || "Anonymous",
         answers: finalAnswers,
         scores: weightedScores,
         archetypes: archetypeMatches.map((m) => ({
@@ -331,8 +323,28 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
         quizData,
       );
 
+      console.log("✅ Quiz saved with ID:", docRef.id);
+
+      // ✅ ADDED: Save snapshot if user consented
+      if (userUid && consentChoice === true) {
+        try {
+          await saveCrossProjectSnapshot({
+            uid: userUid,
+            quizResultDocId: docRef.id,
+            userConsent: true,
+          });
+          console.log("✅ Snapshot saved to main project");
+        } catch (error) {
+          console.error("❌ Failed to save snapshot:", error);
+        }
+      }
+
       if (onComplete) {
-        onComplete({ scores: weightedScores, rankings: uiRankings, resultDocId: docRef.id });
+        onComplete({
+          scores: weightedScores,
+          rankings: uiRankings,
+          resultDocId: docRef.id,
+        });
       }
 
       setIsComplete(true);
@@ -372,6 +384,15 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
   const progress = (answeredCount / questions.length) * 100;
   const totalPages = Math.ceil(questions.length / 3);
   const currentPage = Math.floor(currentQuestion / 3);
+
+  // ✅ ADDED: Check if we're on last batch and all answered
+  const isOnLastBatch = currentQuestion + 3 >= questions.length;
+  const allQuestionsAnswered = answeredCount === questions.length;
+  const showConsentBanner =
+    userUid && fromApp && isOnLastBatch && allQuestionsAnswered;
+  const canSubmit = showConsentBanner
+    ? consentChoice !== null
+    : isBatchComplete;
 
   if (isSubmitting) {
     return (
@@ -448,14 +469,57 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({ userName, onComplete 
         })}
       </View>
 
+      {/* ✅ ADDED: Consent banner after last question */}
+      {showConsentBanner && (
+        <View style={styles.consentBanner}>
+          <Text style={styles.consentTitle}>🏹 Link to Your Profile?</Text>
+          <Text style={styles.consentText}>
+            Show your personality results on your BohriCupid profile for others
+            to see
+          </Text>
+          <View style={styles.consentButtons}>
+            <TouchableOpacity
+              style={[
+                styles.consentButton,
+                consentChoice === true && styles.consentButtonSelected,
+              ]}
+              onPress={() => setConsentChoice(true)}
+            >
+              <Text
+                style={[
+                  styles.consentButtonText,
+                  consentChoice === true && styles.consentButtonTextSelected,
+                ]}
+              >
+                Yes, link to profile
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.consentButton,
+                styles.consentButtonNo,
+                consentChoice === false && styles.consentButtonNoSelected,
+              ]}
+              onPress={() => setConsentChoice(false)}
+            >
+              <Text
+                style={[
+                  styles.consentButtonText,
+                  consentChoice === false && styles.consentButtonTextSelected,
+                ]}
+              >
+                No, keep private
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View style={styles.footerContainer}>
         <TouchableOpacity
-          style={[
-            styles.nextButton,
-            !isBatchComplete && styles.nextButtonDisabled,
-          ]}
+          style={[styles.nextButton, !canSubmit && styles.nextButtonDisabled]}
           onPress={handleNext}
-          disabled={!isBatchComplete}
+          disabled={!canSubmit}
         >
           <Text style={styles.nextButtonText}>
             {currentQuestion + 3 >= questions.length
@@ -584,6 +648,68 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: "rgba(245, 230, 184, 0.4)",
+  },
+  // ✅ ADDED: Consent banner styles
+  consentBanner: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 24,
+    marginTop: 20,
+    borderWidth: 2,
+    borderColor: "#D4654A",
+    shadowColor: "rgba(212, 101, 74, 0.2)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  consentTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#D4654A",
+    marginBottom: 8,
+    fontFamily: Fonts.serif,
+    textAlign: "center",
+  },
+  consentText: {
+    fontSize: 14,
+    color: "#2A1F17",
+    marginBottom: 20,
+    fontFamily: Fonts.sans,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  consentButtons: {
+    flexDirection: isMobile ? "column" : "row",
+    gap: 12,
+  },
+  consentButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 24,
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    borderColor: "#D4654A",
+    alignItems: "center",
+  },
+  consentButtonSelected: {
+    backgroundColor: "#D4654A",
+  },
+  consentButtonNo: {
+    borderColor: "#8B7355",
+  },
+  consentButtonNoSelected: {
+    backgroundColor: "#8B7355",
+    borderColor: "#8B7355",
+  },
+  consentButtonText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#D4654A",
+    fontFamily: Fonts.sans,
+  },
+  consentButtonTextSelected: {
+    color: "#FFFFFF",
   },
   footerContainer: {
     marginTop: 20,
