@@ -1,6 +1,7 @@
 import { BlurView } from "expo-blur";
 import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
+import { useRoute } from "@react-navigation/native";
 import {
   Alert,
   Animated,
@@ -575,6 +576,13 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   const [sliderCompleted, setSliderCompleted] = useState(false);
   const [sliderDragging, setSliderDragging] = useState(false);
 
+  // Show the saved-to-profile dialog only when the navigation source equals 'app'
+  const route = useRoute();
+  const routeParams = (route.params as any) || {};
+  const [profileDialogVisible, setProfileDialogVisible] = useState(
+    routeParams.source === "app",
+  );
+
   useEffect(() => {
     const fetchArchetypes = async () => {
       try {
@@ -809,6 +817,37 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
           </View>
         </View>
       </ScrollView>
+
+      {/* Saved-to-profile dialog */}
+      <Modal
+        visible={profileDialogVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setProfileDialogVisible(false)}
+      >
+        <BlurView intensity={30} tint="dark" style={modalStyles.backdrop}>
+          <Pressable
+            style={modalStyles.backdropPress}
+            onPress={() => setProfileDialogVisible(false)}
+          >
+            <View style={[modalStyles.container, modalStyles.profileDialog]}>
+              <Text style={modalStyles.profileDialogText}>
+                This was saved to your Bohri Cupid profile but it is not
+                visible to users yet. You can make it visible if you'd like
+                in your profile settings.
+              </Text>
+
+              <TouchableOpacity
+                style={modalStyles.profileDialogBtn}
+                onPress={() => setProfileDialogVisible(false)}
+              >
+                <Text style={modalStyles.profileDialogBtnText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </BlurView>
+      </Modal>
 
       <ArchetypeModal
         arch={selectedArch}
@@ -1102,6 +1141,32 @@ const modalStyles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 12,
     fontStyle: "italic",
+  },
+  profileDialog: {
+    padding: 20,
+    maxWidth: 520,
+    alignItems: "center",
+  },
+  profileDialogText: {
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+    color: C.darkSoft,
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  profileDialogBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 20,
+    backgroundColor: C.orange,
+    alignItems: "center",
+  },
+  profileDialogBtnText: {
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
 });
 

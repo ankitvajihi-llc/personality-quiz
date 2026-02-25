@@ -5,6 +5,7 @@ import {
   getDocs,
   orderBy,
   query,
+  serverTimestamp,
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 
@@ -20,7 +21,7 @@ import {
 } from "react-native";
 import { db } from "../firebase.config";
 import { Fonts } from "../fonts";
-import { saveCrossProjectSnapshot } from "../utils/cloudFunctions"; // ✅ ADDED
+import { saveCrossProjectSnapshot } from "../utils/cloudFunctions";
 import { ArchetypeData } from "../utils/setupArchetypes";
 import { Question, QuestionWeights } from "../utils/setupQuestions";
 import QuestionItem from "./components/QuestionItem";
@@ -60,12 +61,12 @@ export interface ArchetypeRankingUI {
 
 interface PersonalityQuizProps {
   userName?: string;
-  userUid?: string | null; // ✅ ADDED
-  fromApp?: boolean; // ✅ ADDED
+  userUid?: string | null;
+  fromApp?: boolean;
   onComplete?: (payload: {
     scores: AxisScores;
     rankings: ArchetypeRankingUI[];
-    resultDocId: string;
+    resultDocId?: string;
   }) => void;
 }
 
@@ -74,8 +75,8 @@ const isMobile = width < 768;
 
 const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
   userName,
-  userUid, // ✅ ADDED
-  fromApp, // ✅ ADDED
+  userUid,
+  fromApp,
   onComplete,
 }) => {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -87,7 +88,6 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
   const [userId, setUserId] = useState("");
   const [focusedQuestionIndex, setFocusedQuestionIndex] = useState(0);
   const [archetypes, setArchetypes] = useState<ArchetypeData[]>([]);
-  const [consentChoice, setConsentChoice] = useState<boolean | null>(null); // ✅ ADDED
 
   useEffect(() => {
     loadQuestions();
@@ -268,11 +268,6 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
     if (currentQuestion + 3 < questions.length) {
       setCurrentQuestion(currentQuestion + 3);
     } else {
-      // ✅ CHANGED: Don't submit immediately if from app
-      if (userUid && fromApp && consentChoice === null) {
-        // Just scroll down - consent banner will show
-        return;
-      }
       await submitQuiz(answers);
     }
   };
@@ -314,8 +309,11 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
           distance: m.distance,
         })),
         totalQuestions: questions.length,
-        completedAt: new Date().toISOString(),
+        // Use Firestore server timestamp for consistent cross-client typing
+        completedAt: serverTimestamp(),
+        // Keep a client-side Date where useful (Firestore will store this as a Timestamp)
         timestamp: new Date(),
+        isVisible: false, // ✅ Default to false
       };
 
       const docRef = await addDoc(
@@ -325,13 +323,13 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
 
       console.log("✅ Quiz saved with ID:", docRef.id);
 
-      // ✅ ADDED: Save snapshot if user consented
-      if (userUid && consentChoice === true) {
+      // ✅ Save to main project if from app (always with userConsent: true)
+      if (userUid && fromApp) {
         try {
           await saveCrossProjectSnapshot({
             uid: userUid,
             quizResultDocId: docRef.id,
-            userConsent: true,
+            userConsent: true, // Always true when from app
           });
           console.log("✅ Snapshot saved to main project");
         } catch (error) {
@@ -384,15 +382,6 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
   const progress = (answeredCount / questions.length) * 100;
   const totalPages = Math.ceil(questions.length / 3);
   const currentPage = Math.floor(currentQuestion / 3);
-
-  // ✅ ADDED: Check if we're on last batch and all answered
-  const isOnLastBatch = currentQuestion + 3 >= questions.length;
-  const allQuestionsAnswered = answeredCount === questions.length;
-  const showConsentBanner =
-    userUid && fromApp && isOnLastBatch && allQuestionsAnswered;
-  const canSubmit = showConsentBanner
-    ? consentChoice !== null
-    : isBatchComplete;
 
   if (isSubmitting) {
     return (
@@ -469,57 +458,14 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
         })}
       </View>
 
-      {/* ✅ ADDED: Consent banner after last question */}
-      {showConsentBanner && (
-        <View style={styles.consentBanner}>
-          <Text style={styles.consentTitle}>Link to Your Bohri Cupid Profile?</Text>
-          <Text style={styles.consentText}>
-            Show your personality results on your BohriCupid profile for others
-            to see
-          </Text>
-          <View style={styles.consentButtons}>
-            <TouchableOpacity
-              style={[
-                styles.consentButton,
-                consentChoice === true && styles.consentButtonSelected,
-              ]}
-              onPress={() => setConsentChoice(true)}
-            >
-              <Text
-                style={[
-                  styles.consentButtonText,
-                  consentChoice === true && styles.consentButtonTextSelected,
-                ]}
-              >
-                Yes, show on my profile
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.consentButton,
-                styles.consentButtonNo,
-                consentChoice === false && styles.consentButtonNoSelected,
-              ]}
-              onPress={() => setConsentChoice(false)}
-            >
-              <Text
-                style={[
-                  styles.consentButtonText,
-                  consentChoice === false && styles.consentButtonTextSelected,
-                ]}
-              >
-                No, keep private
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
       <View style={styles.footerContainer}>
         <TouchableOpacity
-          style={[styles.nextButton, !canSubmit && styles.nextButtonDisabled]}
+          style={[
+            styles.nextButton,
+            !isBatchComplete && styles.nextButtonDisabled,
+          ]}
           onPress={handleNext}
-          disabled={!canSubmit}
+          disabled={!isBatchComplete}
         >
           <Text style={styles.nextButtonText}>
             {currentQuestion + 3 >= questions.length
@@ -575,30 +521,6 @@ const styles = StyleSheet.create({
     height: isMobile ? 119 : 149,
     marginBottom: 16,
   },
-  logoCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2.5,
-    borderColor: "#D4A843",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#D4654A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 4,
-  },
-  logoEmoji: {
-    fontSize: 18,
-  },
-  logo: {
-    fontSize: 20,
-    fontWeight: Fonts.weights.bold,
-    color: "#2A1F17",
-    fontFamily: Fonts.serif,
-  },
   progressContainer: {
     width: "100%",
     alignItems: "center",
@@ -648,68 +570,6 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: "rgba(245, 230, 184, 0.4)",
-  },
-  // ✅ ADDED: Consent banner styles
-  consentBanner: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 24,
-    marginTop: 20,
-    borderWidth: 2,
-    borderColor: "#D4654A",
-    shadowColor: "rgba(212, 101, 74, 0.2)",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  consentTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#D4654A",
-    marginBottom: 8,
-    fontFamily: Fonts.serif,
-    textAlign: "center",
-  },
-  consentText: {
-    fontSize: 14,
-    color: "#2A1F17",
-    marginBottom: 20,
-    fontFamily: Fonts.sans,
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  consentButtons: {
-    flexDirection: isMobile ? "column" : "row",
-    gap: 12,
-  },
-  consentButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 24,
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: "#D4654A",
-    alignItems: "center",
-  },
-  consentButtonSelected: {
-    backgroundColor: "#D4654A",
-  },
-  consentButtonNo: {
-    borderColor: "#8B7355",
-  },
-  consentButtonNoSelected: {
-    backgroundColor: "#8B7355",
-    borderColor: "#8B7355",
-  },
-  consentButtonText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#D4654A",
-    fontFamily: Fonts.sans,
-  },
-  consentButtonTextSelected: {
-    color: "#FFFFFF",
   },
   footerContainer: {
     marginTop: 20,
