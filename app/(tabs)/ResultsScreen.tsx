@@ -1,5 +1,3 @@
-import { useRoute } from "@react-navigation/native";
-import { BlurView } from "expo-blur";
 import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -8,13 +6,16 @@ import {
   Dimensions,
   Easing,
   Image,
+  Linking,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -202,7 +203,9 @@ const ArchetypeModal = ({
       statusBarTranslucent
       onRequestClose={handleClose}
     >
-      <BlurView intensity={40} tint="dark" style={modalStyles.backdrop}>
+      <View
+        style={[modalStyles.backdrop, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+      >
         <Pressable style={modalStyles.backdropPress} onPress={handleClose}>
           <Animated.View
             style={[
@@ -278,7 +281,7 @@ const ArchetypeModal = ({
             </Pressable>
           </Animated.View>
         </Pressable>
-      </BlurView>
+      </View>
     </Modal>
   );
 };
@@ -296,6 +299,7 @@ const AccuracySlider = ({
   const [value, setValue] = useState(3);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
 
   const [trackWidth, setTrackWidth] = useState(0);
 
@@ -337,10 +341,14 @@ const AccuracySlider = ({
     ]).start();
   };
 
-  const updateFeedback = async (newValue: number) => {
+  const updateFeedback = async (newValue: number, text?: string) => {
     try {
       const resultRef = doc(db, "personality_quiz_results", resultDocId);
-      await updateDoc(resultRef, { feedback: newValue });
+      const data: Record<string, any> = { feedback: newValue };
+      if (text) {
+        data.result_feedback = text;
+      }
+      await updateDoc(resultRef, data);
     } catch (error) {
       console.error("Error updating feedback:", error);
     }
@@ -356,7 +364,7 @@ const AccuracySlider = ({
 
   const handleSubmit = () => {
     setSubmitted(true);
-    updateFeedback(value);
+    updateFeedback(value, feedbackText.trim() || undefined);
     onComplete?.();
   };
 
@@ -525,6 +533,23 @@ const AccuracySlider = ({
         </View>
       </View>
 
+      {hasInteracted && value <= 4 && !submitted && (
+        <View style={sliderStyles.feedbackContainer}>
+          <Text style={sliderStyles.feedbackLabel}>
+            What felt off? (optional)
+          </Text>
+          <TextInput
+            style={sliderStyles.feedbackInput}
+            placeholder="e.g. I think I'm more of a..."
+            placeholderTextColor="#BBB"
+            value={feedbackText}
+            onChangeText={setFeedbackText}
+            multiline
+            maxLength={300}
+          />
+        </View>
+      )}
+
       {!submitted ? (
         <TouchableOpacity
           style={[
@@ -551,7 +576,6 @@ const AccuracySlider = ({
           </Text>
         </View>
       )}
-
     </View>
   );
 };
@@ -574,11 +598,16 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
   const [sliderCompleted, setSliderCompleted] = useState(false);
   const [sliderDragging, setSliderDragging] = useState(false);
 
+  // Parse URL params once for source/uid checks
+  const urlParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : null;
+  const hasUid = !!urlParams?.get("uid");
+
   // Show the saved-to-profile dialog only when the navigation source equals 'app'
-  const route = useRoute();
-  const routeParams = (route.params as any) || {};
   const [profileDialogVisible, setProfileDialogVisible] = useState(
-    routeParams.source === "app",
+    urlParams?.get("source") === "app",
   );
 
   useEffect(() => {
@@ -784,10 +813,11 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
               </View>
 
               {!sliderCompleted && (
-                <BlurView
-                  intensity={15}
-                  tint="light"
-                  style={styles.lockedBlurOverlay}
+                <View
+                  style={[
+                    styles.lockedBlurOverlay,
+                    { backgroundColor: "rgba(254,246,236,0.85)" },
+                  ]}
                 >
                   <View style={styles.lockedCard}>
                     <Text style={styles.lockedIcon}>🔒</Text>
@@ -799,7 +829,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
                       with other Bohra personalities
                     </Text>
                   </View>
-                </BlurView>
+                </View>
               )}
             </View>
           </View>
@@ -813,6 +843,40 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
               <Text style={styles.retakeButtonText}>Retake Test</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Download CTA - only show for web visitors, not app users */}
+          {!hasUid && (
+            <TouchableOpacity
+              style={styles.downloadBanner}
+              onPress={() => {
+                const os = Platform.OS;
+                const userAgent =
+                  typeof navigator !== "undefined"
+                    ? navigator.userAgent || ""
+                    : "";
+                const isIOS =
+                  os === "ios" || /iPhone|iPad|iPod/i.test(userAgent);
+                const isAndroid =
+                  os === "android" || /Android/i.test(userAgent);
+
+                const url = isIOS
+                  ? "https://apps.apple.com/app/bohri-cupid/id1672202142"
+                  : isAndroid
+                    ? "https://play.google.com/store/apps/details?id=com.mycompany.bohradatingapp&hl=en"
+                    : "https://www.bohricupid.com/";
+
+                Linking.openURL(url);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.downloadTitle}>
+                Are you single and looking for a partner in the community?
+              </Text>
+              <View style={styles.downloadBtn}>
+                <Text style={styles.downloadBtnText}>Download Bohri Cupid</Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
@@ -824,7 +888,9 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
         statusBarTranslucent
         onRequestClose={() => setProfileDialogVisible(false)}
       >
-        <BlurView intensity={30} tint="dark" style={modalStyles.backdrop}>
+        <View
+          style={[modalStyles.backdrop, { backgroundColor: "rgba(0,0,0,0.5)" }]}
+        >
           <Pressable
             style={modalStyles.backdropPress}
             onPress={() => setProfileDialogVisible(false)}
@@ -844,7 +910,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
               </TouchableOpacity>
             </View>
           </Pressable>
-        </BlurView>
+        </View>
       </Modal>
 
       <ArchetypeModal
@@ -1009,6 +1075,29 @@ const sliderStyles = StyleSheet.create({
     opacity: 0.5,
   },
   labelTextActive: { color: C.orange, fontWeight: "bold", opacity: 1 },
+
+  feedbackContainer: {
+    width: "100%",
+    marginBottom: 16,
+  },
+  feedbackLabel: {
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    color: C.darkSoft,
+    marginBottom: 8,
+  },
+  feedbackInput: {
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    color: C.dark,
+    backgroundColor: `${C.goldPale}30`,
+    borderRadius: 12,
+    padding: 14,
+    minHeight: 70,
+    textAlignVertical: "top",
+    borderWidth: 1,
+    borderColor: `${C.goldPale}60`,
+  },
 
   submitBtn: {
     paddingVertical: 14,
@@ -1430,6 +1519,42 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "bold",
     color: C.darkSoft,
+  },
+  downloadBanner: {
+    marginTop: 28,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 28,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: C.gold,
+    shadowColor: "rgba(212, 168, 67, 0.15)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  downloadTitle: {
+    fontFamily: Fonts.serif,
+    fontSize: 16,
+    fontWeight: "600",
+    color: C.dark,
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  downloadBtn: {
+    backgroundColor: C.gold,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 30,
+  },
+  downloadBtnText: {
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
   },
 });
 
