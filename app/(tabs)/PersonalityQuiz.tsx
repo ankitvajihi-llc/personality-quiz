@@ -472,7 +472,7 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
       {/* ✅ ADDED: Consent banner after last question */}
       {showConsentBanner && (
         <View style={styles.consentBanner}>
-          <Text style={styles.consentTitle}>🏹 Link to Your Profile?</Text>
+          <Text style={styles.consentTitle}>Link to Your Bohri Cupid Profile?</Text>
           <Text style={styles.consentText}>
             Show your personality results on your BohriCupid profile for others
             to see
@@ -491,7 +491,7 @@ const PersonalityQuiz: React.FC<PersonalityQuizProps> = ({
                   consentChoice === true && styles.consentButtonTextSelected,
                 ]}
               >
-                Yes, link to profile
+                Yes, show on my profile
               </Text>
             </TouchableOpacity>
             <TouchableOpacity

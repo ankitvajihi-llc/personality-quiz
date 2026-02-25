@@ -283,8 +283,18 @@ const ArchetypeModal = ({
 };
 
 // --- ACCURACY SLIDER COMPONENT ---
-const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
+const AccuracySlider = ({
+  resultDocId,
+  onComplete,
+  onDragStateChange,
+}: {
+  resultDocId: string;
+  onComplete?: () => void;
+  onDragStateChange?: (isDragging: boolean) => void;
+}) => {
   const [value, setValue] = useState(3);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const [trackWidth, setTrackWidth] = useState(0);
 
@@ -294,8 +304,10 @@ const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
   // Refs to avoid stale closures in PanResponder
   const valueRef = useRef(value);
   const trackWidthRef = useRef(trackWidth);
+  const submittedRef = useRef(submitted);
   valueRef.current = value;
   trackWidthRef.current = trackWidth;
+  submittedRef.current = submitted;
 
   const current = SLIDER_LABELS[value - 1];
 
@@ -334,10 +346,17 @@ const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
   };
 
   const selectValue = (newValue: number) => {
+    if (submitted) return;
     setValue(newValue);
+    setHasInteracted(true);
     animateToValue(newValue);
     triggerPulse();
-    updateFeedback(newValue);
+  };
+
+  const handleSubmit = () => {
+    setSubmitted(true);
+    updateFeedback(value);
+    onComplete?.();
   };
 
   // Track the drag start value so we always compute from the correct origin
@@ -352,9 +371,11 @@ const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
       onPanResponderGrant: () => {
         // Capture the value at drag start
         dragStartValueRef.current = valueRef.current;
+        onDragStateChange?.(true);
       },
 
       onPanResponderMove: (_, gs) => {
+        if (submittedRef.current) return;
         const tw = trackWidthRef.current;
         if (tw === 0) return;
         const startPos = ((dragStartValueRef.current - 1) / 4) * tw;
@@ -370,11 +391,13 @@ const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
         if (snappedValue !== valueRef.current) {
           valueRef.current = snappedValue;
           setValue(snappedValue);
+          setHasInteracted(true);
           triggerPulse();
         }
       },
 
       onPanResponderRelease: (_, gs) => {
+        if (submittedRef.current) return;
         const tw = trackWidthRef.current;
         if (tw === 0) return;
         const startPos = ((dragStartValueRef.current - 1) / 4) * tw;
@@ -386,9 +409,10 @@ const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
         );
 
         setValue(newValue);
+        setHasInteracted(true);
         valueRef.current = newValue;
         animateToValue(newValue);
-        updateFeedback(newValue);
+        onDragStateChange?.(false);
       },
     }),
   ).current;
@@ -502,6 +526,33 @@ const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
         </View>
       </View>
 
+      {!submitted ? (
+        <TouchableOpacity
+          style={[
+            sliderStyles.submitBtn,
+            !hasInteracted && sliderStyles.submitBtnDisabled,
+          ]}
+          onPress={handleSubmit}
+          disabled={!hasInteracted}
+        >
+          <Text
+            style={[
+              sliderStyles.submitBtnText,
+              !hasInteracted && sliderStyles.submitBtnTextDisabled,
+            ]}
+          >
+            Submit & Unlock Compatibility
+          </Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={sliderStyles.submittedContainer}>
+          <Text style={sliderStyles.submittedTitle}>Thanks for rating!</Text>
+          <Text style={sliderStyles.submittedSub}>
+            Scroll down to see your compatibility
+          </Text>
+        </View>
+      )}
+
     </View>
   );
 };
@@ -521,6 +572,8 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
     null,
   );
   const [modalVisible, setModalVisible] = useState(false);
+  const [sliderCompleted, setSliderCompleted] = useState(false);
+  const [sliderDragging, setSliderDragging] = useState(false);
 
   useEffect(() => {
     const fetchArchetypes = async () => {
@@ -615,13 +668,13 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
 
   const handleShare = async () => {
     try {
-      const shareMessage = `🏹 Bohri Cupid Personality Results\n\nMy Top Match: ${primary.label} (${primary.match}%)\n\nDiscover your Bohra personality with Bohri Cupid!`;
+      const shareMessage = `I got "${primary.label}" on the Bohri Cupid Personality Test. What type of Bohra are you?\n\nquiz.bohricupid.com`;
       await Share.share({
         message: shareMessage,
-        title: "My Bohri Cupid Results",
+        title: "Bohri Cupid Personality Test",
       });
     } catch (error) {
-      Alert.alert("Error", "Unable to share results");
+      Alert.alert("Error", "Unable to share");
     }
   };
 
@@ -638,6 +691,7 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
+        scrollEnabled={!sliderDragging}
       >
         {/* Hero Section */}
         <View style={styles.heroSection}>
@@ -692,7 +746,11 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
 
           {/* ACCURACY SLIDER IS HERE */}
           <View style={{ opacity: showContent ? 1 : 0 }}>
-            <AccuracySlider resultDocId={resultDocId} />
+            <AccuracySlider
+              resultDocId={resultDocId}
+              onComplete={() => setSliderCompleted(true)}
+              onDragStateChange={setSliderDragging}
+            />
           </View>
 
           {/* Similar Types */}
@@ -701,26 +759,49 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
             <Text style={styles.similarSectionSubtitle}>
               Your Compatibility with Other Types of Bohras
             </Text>
-            <View style={styles.gridContainer}>
-              {similar.map((arch, i) => (
-                <GridCard
-                  key={arch.key}
-                  arch={arch}
-                  rank={i + 2}
-                  delay={200 + i * 180}
-                  onPress={(a: ArchetypeRanking) => {
-                    setSelectedArch(a);
-                    setModalVisible(true);
-                  }}
-                />
-              ))}
+
+            <View style={styles.lockedContainer}>
+              <View style={styles.gridContainer}>
+                {similar.map((arch, i) => (
+                  <GridCard
+                    key={arch.key}
+                    arch={arch}
+                    rank={i + 2}
+                    delay={sliderCompleted ? 200 + i * 180 : 0}
+                    onPress={(a: ArchetypeRanking) => {
+                      if (!sliderCompleted) return;
+                      setSelectedArch(a);
+                      setModalVisible(true);
+                    }}
+                  />
+                ))}
+              </View>
+
+              {!sliderCompleted && (
+                <BlurView
+                  intensity={15}
+                  tint="light"
+                  style={styles.lockedBlurOverlay}
+                >
+                  <View style={styles.lockedCard}>
+                    <Text style={styles.lockedIcon}>🔒</Text>
+                    <Text style={styles.lockedTitle}>
+                      Rate your result to unlock
+                    </Text>
+                    <Text style={styles.lockedSubtitle}>
+                      Use the accuracy slider above to reveal your compatibility
+                      with other Bohra personalities
+                    </Text>
+                  </View>
+                </BlurView>
+              )}
             </View>
           </View>
 
           {/* Action Buttons */}
           <View style={styles.actionsContainer}>
             <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-              <Text style={styles.shareButtonText}>Share Results 🏹</Text>
+              <Text style={styles.shareButtonText}>Share the Test 🏹</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.retakeButton} onPress={onRetake}>
               <Text style={styles.retakeButtonText}>Retake Test</Text>
@@ -859,7 +940,7 @@ const sliderStyles = StyleSheet.create({
     backgroundColor: C.orange,
   },
 
-  thumb: { position: "absolute", left: 0, zIndex: 10 },
+  thumb: { position: "absolute", left: 0, zIndex: 10, padding: 10 },
   thumbInner: {
     width: 32,
     height: 32,
@@ -896,17 +977,26 @@ const sliderStyles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 30,
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: C.orange,
+    backgroundColor: C.orange,
     width: "100%",
     alignItems: "center",
   },
+  submitBtnDisabled: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    borderColor: "#DDD",
+  },
   submitBtnText: {
     fontFamily: Fonts.sans,
-    color: C.orange,
+    color: "#FFFFFF",
     fontWeight: "bold",
     fontSize: 15,
+  },
+  submitBtnTextDisabled: {
+    color: "#CCC",
+  },
+  submittedContainer: {
+    alignItems: "center",
   },
   submittedTitle: {
     fontFamily: Fonts.serif,
@@ -1189,6 +1279,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: C.orange,
+  },
+
+  lockedContainer: {
+    position: "relative",
+  },
+  lockedCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    padding: 28,
+    alignItems: "center",
+    shadowColor: "rgba(42, 31, 23, 0.1)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 6,
+    borderWidth: 2,
+    borderColor: C.orange,
+  },
+  lockedBlurOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 16,
+    padding: 24,
+    overflow: "hidden",
+  },
+  lockedIcon: {
+    fontSize: 36,
+    marginBottom: 12,
+  },
+  lockedTitle: {
+    fontFamily: Fonts.serif,
+    fontSize: 18,
+    fontWeight: "bold",
+    color: C.dark,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  lockedSubtitle: {
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    color: C.darkSoft,
+    textAlign: "center",
+    lineHeight: 19,
   },
 
   actionsContainer: {
