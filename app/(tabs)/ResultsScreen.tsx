@@ -1,7 +1,7 @@
+import { useRoute } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
-import { useRoute } from "@react-navigation/native";
 import {
   Alert,
   Animated,
@@ -401,8 +401,6 @@ const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
     }
   }, [trackWidth]);
 
-
-
   const fillWidth = thumbAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
@@ -502,7 +500,6 @@ const AccuracySlider = ({ resultDocId }: { resultDocId: string }) => {
           ))}
         </View>
       </View>
-
     </View>
   );
 };
@@ -752,9 +749,9 @@ const ResultsScreen: React.FC<ResultsScreenProps> = ({
           >
             <View style={[modalStyles.container, modalStyles.profileDialog]}>
               <Text style={modalStyles.profileDialogText}>
-                This was saved to your Bohri Cupid profile but it is not
-                visible to users yet. You can make it visible if you'd like
-                in your profile settings.
+                This was saved to your Bohri Cupid profile but it is not visible
+                to users yet. You can make it visible if you'd like in your
+                profile settings.
               </Text>
 
               <TouchableOpacity
