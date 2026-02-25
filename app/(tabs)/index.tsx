@@ -27,34 +27,34 @@ export default function Index() {
         const params = new URLSearchParams(window.location.search);
         const uid = params.get('uid');
         const source = params.get('source');
-        const resultDocId = params.get('resultDocId'); // ✅ GET DOC ID FROM URL
-        
+        const docId = params.get('docId'); // ✅ GET DOC ID FROM URL
+
         if (uid) {
           setUserUid(uid);
           setFromApp(source === 'app');
           console.log('✅ Detected UID from URL:', uid);
 
           // ✅ If resultDocId provided, fetch that result
-          if (resultDocId) {
+          if (docId) {
             try {
-              const docRef = doc(db, 'personality_quiz_results', resultDocId);
+              const docRef = doc(db, 'personality_quiz_results', docId);
               const docSnap = await getDoc(docRef);
               
               if (docSnap.exists()) {
                 const data = docSnap.data();
-                console.log('✅ Found existing quiz results:', resultDocId);
+                console.log('✅ Found existing quiz results:', docId);
                 
                 setResults({
                   scores: data.scores,
                   rankings: data.archetypes?.map((arch: any) => ({
                     key: arch.id,
-                    label: arch.id,
+                    label: arch.label,
                     match: arch.percentage,
                     color: '#D4654A',
                     emoji: '🏹',
                     arrow: '🏹',
                   })) || [],
-                  resultDocId: resultDocId,
+                  resultDocId: docId, // ✅ Store the document ID for later use
                 });
                 setPhase("results");
                 return;
